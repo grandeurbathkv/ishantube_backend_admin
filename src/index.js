@@ -23,9 +23,14 @@ const swaggerOptions = {
     servers: [
       {
         url: `http://localhost:${process.env.PORT || 5000}`,
-        description: 'Development server',
+        description: 'Local Development server',
+      },
+      {
+        url: "https://ishantube-backend-admin.onrender.com",
+        description: "Production server (Render)",
       },
     ],
+
     components: {
       securitySchemes: {
         bearerAuth: {
