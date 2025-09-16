@@ -44,6 +44,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 app.use(express.json()); // Allows parsing of JSON request bodies
 
+// ✅ Root route
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: '🚀 Backend server is running successfully!',
+  });
+});
+
 app.use('/api', routes);
 
 // Use custom error handling middleware
@@ -51,6 +59,6 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`API docs available at http://localhost:${PORT}/api-docs`);
+  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`📄 API docs available at http://localhost:${PORT}/api-docs`);
 });
