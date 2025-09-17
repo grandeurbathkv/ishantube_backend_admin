@@ -13,11 +13,8 @@ connectDB();
 const app = express();
 
 app.use(cors({
-  origin: [
-    "http://localhost:3000",  // frontend local dev
-    "https://ishantube-frontend.onrender.com" // deployed frontend (agar alag domain h to yaha add karo)
-  ],
-  credentials: true, // agar cookies ya auth bhejni ho to
+  origin: "*", 
+  credentials: true
 }));
 
 // Swagger setup
