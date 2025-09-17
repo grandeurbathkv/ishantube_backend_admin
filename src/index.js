@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import cors from 'cors';
 import connectDB from './config/db.js';
 import routes from './routers/index.js';
 import errorHandler from './middleware/errorhanddling.js';
@@ -10,6 +11,14 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+app.use(cors({
+  origin: [
+    "http://localhost:3000",  // frontend local dev
+    "https://ishantube-frontend.onrender.com" // deployed frontend (agar alag domain h to yaha add karo)
+  ],
+  credentials: true, // agar cookies ya auth bhejni ho to
+}));
 
 // Swagger setup
 const swaggerOptions = {
