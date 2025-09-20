@@ -1,9 +1,13 @@
 import express from 'express';
 import {
   manageChannelPartners,
-  manageIncentives,
 } from './channelPartner.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
+import { 
+  uploadChannelPartnerImage, 
+  handleUploadError, 
+  processUploadedFile 
+} from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
 
@@ -21,15 +25,15 @@ const router = express.Router();
  *     ChannelPartner:
  *       type: object
  *       required:
- *         - CP_id
  *         - CP_Name
  *         - Mobile Number
  *         - CP_Address
  *       properties:
  *         CP_id:
  *           type: string
- *           description: Channel Partner Unique ID
+ *           description: Channel Partner Unique ID (Auto-generated)
  *           example: "CP001"
+ *           readOnly: true
  *         CP_Name:
  *           type: string
  *           description: Channel Partner Name
@@ -51,31 +55,21 @@ const router = express.Router();
  *           type: string
  *           description: Channel Partner Address
  *           example: "123 Main Street, City, State - 123456"
- *     ChannelPartnerIncentive:
- *       type: object
- *       required:
- *         - CP_id
- *         - Brand
- *         - Incentive_type
- *         - Incentive_factor
- *       properties:
- *         CP_id:
+ *         status:
+ *           type: boolean
+ *           description: Channel Partner active status
+ *           example: true
+ *           default: true
+ *         createdAt:
  *           type: string
- *           description: Channel Partner Unique ID (Reference)
- *           example: "CP001"
- *         Brand:
+ *           format: date-time
+ *           description: Creation timestamp
+ *           readOnly: true
+ *         updatedAt:
  *           type: string
- *           description: Brand Name
- *           example: "Samsung"
- *         Incentive_type:
- *           type: string
- *           enum: [Percentage, Amount]
- *           description: Incentive Type - Percentage or Fixed Amount
- *           example: "Percentage"
- *         Incentive_factor:
- *           type: number
- *           description: Incentive Factor (0.00-99.99 for Percentage, >=0.00 for Amount)
- *           example: 5.50
+ *           format: date-time
+ *           description: Last update timestamp
+ *           readOnly: true
  */
 
 // ========== Main Channel Partner Management Route ==========
@@ -91,14 +85,65 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/ChannelPartner'
+ *             type: object
+ *             required:
+ *               - CP_Name
+ *               - Mobile Number
+ *               - CP_Address
+ *             properties:
+ *               CP_Name:
+ *                 type: string
+ *                 description: Channel Partner Name
+ *                 example: "ABC Electronics"
+ *               "Mobile Number":
+ *                 type: string
+ *                 description: Mobile number (10 digits)
+ *                 example: "9876543210"
+ *               "Email id":
+ *                 type: string
+ *                 format: email
+ *                 description: Email address (optional)
+ *                 example: "contact@abcelectronics.com"
+ *               Image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Channel Partner image file (JPEG, PNG, max 2MB)
+ *               CP_Address:
+ *                 type: string
+ *                 description: Complete address
+ *                 example: "123 Main Street, City, State - 123456"
+ *               status:
+ *                 type: boolean
+ *                 description: Active status
+ *                 example: true
+ *                 default: true
  *     responses:
  *       201:
  *         description: Channel Partner created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/ChannelPartner'
  *       400:
- *         description: Channel Partner with this ID already exists or invalid data
+ *         description: Invalid data, validation error, or file upload error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "File too large. Maximum size is 2MB."
  *       401:
  *         description: Not authorized
  *   get:
@@ -112,11 +157,6 @@ const router = express.Router();
  *         schema:
  *           type: string
  *         description: Search in name, ID, email, address, or mobile
- *       - in: query
- *         name: include_incentives
- *         schema:
- *           type: boolean
- *         description: Include incentives data for each partner
  *     responses:
  *       200:
  *         description: Channel Partners retrieved successfully
@@ -143,7 +183,7 @@ const router = express.Router();
  * @swagger
  * /api/channelpartner/{id}:
  *   get:
- *     summary: Get Channel Partner by ID with incentives
+ *     summary: Get Channel Partner by ID
  *     tags: [Channel Partner]
  *     security:
  *       - bearerAuth: []
@@ -156,7 +196,7 @@ const router = express.Router();
  *         description: Channel Partner ID
  *     responses:
  *       200:
- *         description: Channel Partner retrieved successfully with incentives
+ *         description: Channel Partner retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -169,10 +209,6 @@ const router = express.Router();
  *                   properties:
  *                     partner:
  *                       $ref: '#/components/schemas/ChannelPartner'
- *                     incentives:
- *                       type: array
- *                       items:
- *                         $ref: '#/components/schemas/ChannelPartnerIncentive'
  *       404:
  *         description: Channel Partner not found
  *       401:
@@ -192,123 +228,38 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/ChannelPartner'
+ *             type: object
+ *             properties:
+ *               CP_Name:
+ *                 type: string
+ *                 description: Channel Partner Name
+ *                 example: "ABC Electronics"
+ *               "Mobile Number":
+ *                 type: string
+ *                 description: Mobile number (10 digits)
+ *                 example: "9876543210"
+ *               "Email id":
+ *                 type: string
+ *                 format: email
+ *                 description: Email address (optional)
+ *                 example: "contact@abcelectronics.com"
+ *               Image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Channel Partner image file (JPEG, PNG, max 2MB)
+ *               CP_Address:
+ *                 type: string
+ *                 description: Complete address
+ *                 example: "123 Main Street, City, State - 123456"
+ *               status:
+ *                 type: boolean
+ *                 description: Active status
+ *                 example: true
  *     responses:
  *       200:
  *         description: Channel Partner updated successfully
- *       404:
- *         description: Channel Partner not found
- *       401:
- *         description: Not authorized
- *   delete:
- *     summary: Delete Channel Partner and associated incentives
- *     tags: [Channel Partner]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Channel Partner ID
- *     responses:
- *       200:
- *         description: Channel Partner and associated incentives deleted successfully
- *       404:
- *         description: Channel Partner not found
- *       401:
- *         description: Not authorized
- */
-
-// Main CRUD routes
-router.route('/').post(protect, manageChannelPartners).get(protect, manageChannelPartners);
-router.route('/:id').get(protect, manageChannelPartners).put(protect, manageChannelPartners).delete(protect, manageChannelPartners);
-
-// ========== Incentive Management Routes ==========
-
-/**
- * @swagger
- * /api/channelpartner/{id}/incentives:
- *   post:
- *     summary: Create a new Channel Partner Incentive
- *     tags: [Channel Partner]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Channel Partner ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - Brand
- *               - Incentive_type
- *               - Incentive_factor
- *             properties:
- *               Brand:
- *                 type: string
- *                 example: "Samsung"
- *               Incentive_type:
- *                 type: string
- *                 enum: [Percentage, Amount]
- *                 example: "Percentage"
- *               Incentive_factor:
- *                 type: number
- *                 example: 5.50
- *     responses:
- *       201:
- *         description: Channel Partner Incentive created successfully
- *       400:
- *         description: Incentive for this brand already exists or invalid data
- *       404:
- *         description: Channel Partner not found
- *       401:
- *         description: Not authorized
- */
-
-/**
- * @swagger
- * /api/channelpartner/incentives:
- *   get:
- *     summary: Get all Channel Partner Incentives with filters
- *     tags: [Channel Partner]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: cp_id
- *         schema:
- *           type: string
- *         description: Filter by Channel Partner ID
- *       - in: query
- *         name: brand
- *         schema:
- *           type: string
- *         description: Filter by brand name
- *       - in: query
- *         name: incentive_type
- *         schema:
- *           type: string
- *           enum: [Percentage, Amount]
- *         description: Filter by incentive type
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Search in brand name or CP_id
- *     responses:
- *       200:
- *         description: Channel Partner Incentives retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -316,87 +267,51 @@ router.route('/:id').get(protect, manageChannelPartners).put(protect, manageChan
  *               properties:
  *                 message:
  *                   type: string
- *                 count:
- *                   type: number
- *                 filters:
- *                   type: object
  *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     allOf:
- *                       - $ref: '#/components/schemas/ChannelPartnerIncentive'
- *                       - type: object
- *                         properties:
- *                           partner_name:
- *                             type: string
- *       401:
- *         description: Not authorized
- */
-
-/**
- * @swagger
- * /api/channelpartner/incentives/{incentiveId}:
- *   put:
- *     summary: Update Channel Partner Incentive
- *     tags: [Channel Partner]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: incentiveId
- *         required: true
- *         schema:
- *           type: string
- *         description: Incentive ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               Brand:
- *                 type: string
- *                 example: "Samsung"
- *               Incentive_type:
- *                 type: string
- *                 enum: [Percentage, Amount]
- *                 example: "Percentage"
- *               Incentive_factor:
- *                 type: number
- *                 example: 5.50
- *     responses:
- *       200:
- *         description: Channel Partner Incentive updated successfully
+ *                   $ref: '#/components/schemas/ChannelPartner'
+ *       400:
+ *         description: Invalid data, validation error, or file upload error
  *       404:
- *         description: Channel Partner Incentive not found
+ *         description: Channel Partner not found
  *       401:
  *         description: Not authorized
  *   delete:
- *     summary: Delete Channel Partner Incentive
+ *     summary: Delete Channel Partner
  *     tags: [Channel Partner]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: incentiveId
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: Incentive ID
+ *         description: Channel Partner ID
  *     responses:
  *       200:
- *         description: Channel Partner Incentive deleted successfully
+ *         description: Channel Partner deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   $ref: '#/components/schemas/ChannelPartner'
  *       404:
- *         description: Channel Partner Incentive not found
+ *         description: Channel Partner not found
  *       401:
  *         description: Not authorized
  */
 
-// Incentive management routes
-router.post('/:id/incentives', protect, manageIncentives);
-router.route('/incentives').get(protect, manageIncentives);
-router.route('/incentives/:incentiveId').put(protect, manageIncentives).delete(protect, manageIncentives);
+// Main CRUD routes
+router.route('/')
+  .post(protect, uploadChannelPartnerImage, handleUploadError, processUploadedFile, manageChannelPartners)
+  .get(protect, manageChannelPartners);
+router.route('/:id')
+  .get(protect, manageChannelPartners)
+  .put(protect, uploadChannelPartnerImage, handleUploadError, processUploadedFile, manageChannelPartners)
+  .delete(protect, manageChannelPartners);
 
 export default router;
