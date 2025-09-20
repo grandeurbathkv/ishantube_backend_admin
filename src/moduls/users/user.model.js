@@ -59,18 +59,21 @@ const userSchema = new mongoose.Schema({
     required: true,
     default: false,
   },
+  status: {
+    type: Boolean,
+    default: true,
+    required: true,
+  },
 }, { timestamps: true });
 
 // Hash password and set isSuperAdmin before saving
 userSchema.pre('save', async function(next) {
   // Only hash the password if it has been modified (or is new)
-  if (!this.isModified('Password')) {
-    // return next(); // This would skip the isSuperAdmin logic below
-  }
   if (this.isModified('Password')) {
     const salt = await bcrypt.genSalt(10);
     this.Password = await bcrypt.hash(this.Password, salt);
   }
+  
   // Set isSuperAdmin based on the Role. This ensures it's updated if the role changes.
   this.isSuperAdmin = this.Role === 'Super Admin';
   next();

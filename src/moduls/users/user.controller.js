@@ -38,6 +38,9 @@ export const registerUser = async (req, res, next) => {
         Role: user.Role,
         Image: user.Image,
         isSuperAdmin: user.isSuperAdmin,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       };
 
       res.status(201).json({
@@ -71,6 +74,9 @@ export const loginUser = async (req, res, next) => {
         Role: user.Role,
         Image: user.Image,
         isSuperAdmin: user.isSuperAdmin,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       };
 
       res.json({
@@ -80,6 +86,56 @@ export const loginUser = async (req, res, next) => {
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Logout user
+// @route   POST /api/users/logout
+// @access  Protected
+export const logoutUser = async (req, res, next) => {
+  try {
+    // In a stateless JWT implementation, logout is typically handled on the client side
+    // by removing the token. However, we can provide a response to confirm logout.
+    
+    res.json({
+      message: 'Logout successful',
+      success: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get user profile
+// @route   GET /api/users/profile
+// @access  Protected
+export const getUserProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('-Password');
+    
+    if (user) {
+      const userResponse = {
+        User_id: user.User_id,
+        'Mobile Number': user['Mobile Number'],
+        'Email id': user['Email id'],
+        'User Name': user['User Name'],
+        Role: user.Role,
+        Image: user.Image,
+        isSuperAdmin: user.isSuperAdmin,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+
+      res.json({
+        message: 'User profile retrieved successfully',
+        user: userResponse,
+      });
+    } else {
+      res.status(404).json({ message: 'User not found' });
     }
   } catch (error) {
     next(error);
