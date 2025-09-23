@@ -67,6 +67,11 @@ channelPartnerSchema.pre('save', async function(next) {
   next();
 });
 
+// Static method to get all CP_id and CP_Name for dropdowns
+channelPartnerSchema.statics.getIdNameDropdown = async function() {
+  return this.find({}, { CP_id: 1, CP_Name: 1, _id: 0 }).sort({ CP_Name: 1 });
+};
+
 // Create model
 const ChannelPartner = mongoose.model('ChannelPartner', channelPartnerSchema);
 

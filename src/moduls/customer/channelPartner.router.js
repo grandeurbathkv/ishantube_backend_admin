@@ -1,6 +1,8 @@
+
 import express from 'express';
 import {
   manageChannelPartners,
+  getChannelPartnerDropdown
 } from './channelPartner.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { 
@@ -10,6 +12,42 @@ import {
 } from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/channelpartner/dropdown:
+ *   get:
+ *     summary: Get all Channel Partner IDs and Names for dropdown
+ *     tags: [Channel Partner]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Channel Partner dropdown data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       CP_id:
+ *                         type: string
+ *                         description: Channel Partner Unique ID
+ *                         example: "CP001"
+ *                       CP_Name:
+ *                         type: string
+ *                         description: Channel Partner Name
+ *                         example: "ABC Electronics"
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/dropdown', protect, getChannelPartnerDropdown);
 
 /**
  * @swagger

@@ -47,7 +47,6 @@ const stateSchema = new mongoose.Schema({
 const architectSchema = new mongoose.Schema({
   Arch_id: {
     type: String,
-    required: [true, 'Architect ID is required'],
     unique: true,
     trim: true,
   },
@@ -58,7 +57,7 @@ const architectSchema = new mongoose.Schema({
   },
   'Mobile Number': {
     type: String,
-    required: [true, 'Mobile number is required'],
+    // required: [true, 'Mobile number is required'],
     validate: {
       validator: function(v) {
         return /^\d{10}$/.test(v);
@@ -75,7 +74,7 @@ const architectSchema = new mongoose.Schema({
   },
   Arch_type: {
     type: String,
-    required: [true, 'Architect type is required'],
+    // required: [true, 'Architect type is required'],
     trim: true,
   },
   Arch_category: {

@@ -1,9 +1,11 @@
+
 import express from 'express';
 import {
   manageArchitects,
   manageDropdownData,
 } from './architect.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
+import { uploadArchitectImage, processUploadedFile } from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
 
@@ -21,7 +23,6 @@ const router = express.Router();
  *     Architect:
  *       type: object
  *       required:
- *         - Arch_id
  *         - Arch_Name
  *         - Mobile Number
  *         - Arch_type
@@ -32,7 +33,8 @@ const router = express.Router();
  *       properties:
  *         Arch_id:
  *           type: string
- *           description: Architect Unique ID
+ *           description: Architect Unique ID (auto-generated)
+ *           readOnly: true
  *           example: "ARCH001"
  *         Arch_Name:
  *           type: string
@@ -87,9 +89,56 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/Architect'
+ *             type: object
+ *             required:
+ *               - Arch_Name
+ *               - Mobile Number
+ *               - Arch_type
+ *               - Arch_category
+ *               - Arch_Address
+ *               - Arch_city
+ *               - Arch_state
+ *             properties:
+ *               Arch_Name:
+ *                 type: string
+ *                 description: Architect Name
+ *                 example: "John Smith"
+ *               Mobile Number:
+ *                 type: string
+ *                 description: Mobile number (10 digits)
+ *                 example: "9876543210"
+ *               Email id:
+ *                 type: string
+ *                 format: email
+ *                 description: Architect email id (optional)
+ *                 example: "john.smith@example.com"
+ *               Arch_type:
+ *                 type: string
+ *                 description: Architect Type
+ *                 example: "Residential"
+ *               Arch_category:
+ *                 type: string
+ *                 enum: [A, B, C, D]
+ *                 description: Architect Category
+ *                 example: "A"
+ *               Image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Architect image (optional)
+ *               Arch_Address:
+ *                 type: string
+ *                 description: Architect Address
+ *                 example: "123 Main Street, Building A"
+ *               Arch_city:
+ *                 type: string
+ *                 description: Architect City
+ *                 example: "Mumbai"
+ *               Arch_state:
+ *                 type: string
+ *                 description: Architect State
+ *                 example: "Maharashtra"
  *     responses:
  *       201:
  *         description: Architect created successfully
@@ -188,9 +237,48 @@ const router = express.Router();
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/Architect'
+ *             type: object
+ *             properties:
+ *               Arch_Name:
+ *                 type: string
+ *                 description: Architect Name
+ *                 example: "John Smith"
+ *               Mobile Number:
+ *                 type: string
+ *                 description: Mobile number (10 digits)
+ *                 example: "9876543210"
+ *               Email id:
+ *                 type: string
+ *                 format: email
+ *                 description: Architect email id (optional)
+ *                 example: "john.smith@example.com"
+ *               Arch_type:
+ *                 type: string
+ *                 description: Architect Type
+ *                 example: "Residential"
+ *               Arch_category:
+ *                 type: string
+ *                 enum: [A, B, C, D]
+ *                 description: Architect Category
+ *                 example: "A"
+ *               Image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Architect image (optional)
+ *               Arch_Address:
+ *                 type: string
+ *                 description: Architect Address
+ *                 example: "123 Main Street, Building A"
+ *               Arch_city:
+ *                 type: string
+ *                 description: Architect City
+ *                 example: "Mumbai"
+ *               Arch_state:
+ *                 type: string
+ *                 description: Architect State
+ *                 example: "Maharashtra"
  *     responses:
  *       200:
  *         description: Architect updated successfully
@@ -219,9 +307,9 @@ const router = express.Router();
  *         description: Not authorized
  */
 
-// Main CRUD routes
-router.route('/').post(protect, manageArchitects).get(protect, manageArchitects);
-router.route('/:id').get(protect, manageArchitects).put(protect, manageArchitects).delete(protect, manageArchitects);
+// Main CRUD routes (with image upload for create/update)
+router.route('/').post(protect, uploadArchitectImage, processUploadedFile, manageArchitects).get(protect, manageArchitects);
+router.route('/:id').get(protect, manageArchitects).put(protect, uploadArchitectImage, processUploadedFile, manageArchitects).delete(protect, manageArchitects);
 
 // ========== Dropdown Management Route ==========
 

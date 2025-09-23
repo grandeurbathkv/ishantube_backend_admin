@@ -1,7 +1,7 @@
 import { Architect, ArchType, City, State } from './architect.model.js';
 
 // Helper function to auto-create dropdown values
-const autoCreateDropdownValues = async (Arch_type, Arch_city, Arch_state) => {
+const autoCreateDropdownValues = async (Arch_type, Arch_city, Arch_state, state_code) => {
   // Auto-create Arch_type if it doesn't exist
   if (Arch_type) {
     const existingType = await ArchType.findOne({ type_name: Arch_type });
@@ -22,7 +22,14 @@ const autoCreateDropdownValues = async (Arch_type, Arch_city, Arch_state) => {
   if (Arch_state) {
     const existingState = await State.findOne({ state_name: Arch_state });
     if (!existingState) {
-      await State.create({ state_name: Arch_state });
+      // Always set a unique state_code
+      let code = state_code;
+      if (!code || code === null || code === '') {
+        // Auto-generate code from state name (e.g., first 3 letters, uppercase, no spaces)
+        code = Arch_state.replace(/\s+/g, '').substring(0, 3).toUpperCase();
+      }
+      const stateData = { state_name: Arch_state, state_code: code };
+      await State.create(stateData);
     }
   }
 };
@@ -40,31 +47,64 @@ export const manageArchitects = async (req, res, next) => {
     const { id } = req.params;
 
     switch (method) {
-      case 'POST':
+
+      case 'POST': {
         // CREATE ARCHITECT
-        const { 
-          Arch_id, Arch_Name, 'Mobile Number': mobileNumber, 'Email id': email, 
-          Arch_type, Arch_category, Image, Arch_Address, Arch_city, Arch_state 
+        const {
+          Arch_Name,
+          Arch_type,
+          Arch_category,
+          Image,
+          Arch_Address,
+          Arch_city,
+          Arch_state,
+          state_code,
+          Mobile,
+          Email
         } = req.body;
 
-        // Check if Architect with Arch_id already exists
-        const existingArchitect = await Architect.findOne({ Arch_id });
+        // Auto-generate next Arch_id (sequential)
+        const lastArchitect = await Architect.findOne({}, {}, { sort: { Arch_id: -1 } });
+        let nextIdNum = 1;
+        if (lastArchitect && lastArchitect.Arch_id) {
+          const match = lastArchitect.Arch_id.match(/ARCH(\d+)/);
+          if (match) {
+            nextIdNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        const Arch_id = `ARCH${String(nextIdNum).padStart(3, '0')}`;
+
+        // Check if Architect with same name and mobile already exists
+        const existingArchitect = await Architect.findOne({ Arch_Name, 'Mobile Number': Mobile });
         if (existingArchitect) {
-          return res.status(400).json({ message: 'Architect with this ID already exists' });
+          return res.status(400).json({ message: 'Architect with this name and mobile number already exists' });
         }
 
-        // Auto-create dropdown values
-        await autoCreateDropdownValues(Arch_type, Arch_city, Arch_state);
+        // Auto-create dropdown values (pass state_code)
+        await autoCreateDropdownValues(Arch_type, Arch_city, Arch_state, state_code);
 
         const newArchitect = await Architect.create({
-          Arch_id, Arch_Name, 'Mobile Number': mobileNumber, 'Email id': email,
-          Arch_type, Arch_category, Image, Arch_Address, Arch_city, Arch_state,
+          Arch_id,
+          Arch_Name,
+          'Mobile Number': Mobile,
+          'Email id': Email,
+          Arch_type,
+          Arch_category,
+          Image,
+          Arch_Address,
+          Arch_city,
+          Arch_state,
         });
 
         return res.status(201).json({
           message: 'Architect created successfully',
-          data: newArchitect,
+          data: {
+            ...newArchitect.toObject(),
+            mobile: newArchitect['Mobile Number'] || '',
+            email: newArchitect['Email id'] || ''
+          }
         });
+      }
 
       case 'GET':
         if (id) {
@@ -97,11 +137,26 @@ export const manageArchitects = async (req, res, next) => {
           }
 
           const architects = await Architect.find(filter).sort({ Arch_Name: 1 });
+          // Ensure Mobile Number and Email id are included in the response
+          const architectList = architects.map(a => ({
+            Arch_id: a.Arch_id,
+            Arch_Name: a.Arch_Name,
+            'Mobile Number': a['Mobile Number'],
+            'Email id': a['Email id'],
+            Arch_type: a.Arch_type,
+            Arch_category: a.Arch_category,
+            Image: a.Image,
+            Arch_Address: a.Arch_Address,
+            Arch_city: a.Arch_city,
+            Arch_state: a.Arch_state,
+            createdAt: a.createdAt,
+            updatedAt: a.updatedAt
+          }));
           return res.status(200).json({
             message: `Architects retrieved successfully${Object.keys(filter).length ? ' with filters' : ''}`,
-            count: architects.length,
+            count: architectList.length,
             filters: filter,
-            data: architects,
+            data: architectList,
           });
         }
 
@@ -111,8 +166,9 @@ export const manageArchitects = async (req, res, next) => {
           return res.status(400).json({ message: 'Architect ID is required for update' });
         }
 
-        // Auto-create dropdown values if they don't exist
-        await autoCreateDropdownValues(req.body.Arch_type, req.body.Arch_city, req.body.Arch_state);
+        // Extract state_code from body for update as well
+        const { Arch_type, Arch_city, Arch_state, state_code } = req.body;
+        await autoCreateDropdownValues(Arch_type, Arch_city, Arch_state, state_code);
 
         const updatedArchitect = await Architect.findOneAndUpdate(
           { Arch_id: id },
@@ -235,23 +291,41 @@ export const manageDropdownData = async (req, res, next) => {
             data: newArchType,
           });
 
+        // City create (dropdown POST)
         case 'city':
+          if (!name) {
+            return res.status(400).json({ message: 'City name is required' });
+          }
           const existingCity = await City.findOne({ city_name: name });
           if (existingCity) {
             return res.status(400).json({ message: 'City already exists' });
           }
-          const newCity = await City.create({ city_name: name, state_code });
+          // Only set state_code if provided and not empty/null
+          const cityData = { city_name: name };
+          if (state_code !== undefined && state_code !== null && state_code !== '') {
+            cityData.state_code = state_code;
+          }
+          const newCity = await City.create(cityData);
           return res.status(201).json({
             message: 'City added successfully',
             data: newCity,
           });
 
+        // State create (dropdown POST)
         case 'state':
+          if (!name) {
+            return res.status(400).json({ message: 'State name is required' });
+          }
           const existingState = await State.findOne({ state_name: name });
           if (existingState) {
             return res.status(400).json({ message: 'State already exists' });
           }
-          const newState = await State.create({ state_name: name, state_code });
+          // Only set state_code if provided and not empty/null
+          const stateData = { state_name: name };
+          if (state_code !== undefined && state_code !== null && state_code !== '') {
+            stateData.state_code = state_code;
+          }
+          const newState = await State.create(stateData);
           return res.status(201).json({
             message: 'State added successfully',
             data: newState,

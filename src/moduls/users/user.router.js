@@ -1,9 +1,47 @@
+
 import express from 'express';
-import { registerUser, loginUser, logoutUser, getUserProfile } from './user.controller.js';
 import { protect, superAdminAuth } from '../../middleware/user.middleware.js';
 import { uploadUserImage, handleUploadError, processUploadedFile } from '../../middleware/upload.middleware.js';
+import { registerUser, loginUser, logoutUser, getUserProfile, getUserDropdown } from './user.controller.js';
 
 const router = express.Router();
+
+
+/**
+ * @swagger
+ * /api/user/dropdown:
+ *   get:
+ *     summary: Get all User _id and User Name for dropdown
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User dropdown data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         description: User MongoDB ObjectId
+ *                         example: "68c7cf4dc083f93c65852e09"
+ *                       User Name:
+ *                         type: string
+ *                         description: User's full name
+ *                         example: "John Doe"
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/dropdown', protect, getUserDropdown);
 
 /**
  * @swagger
