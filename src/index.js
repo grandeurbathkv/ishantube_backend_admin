@@ -47,7 +47,14 @@ const swaggerOptions = {
       },
     },
   },
-  apis: ['./src/moduls/users/user.router.js', './src/moduls/customer/channelPartner.router.js', './src/moduls/customer/architect.router.js', './src/moduls/customer/party.router.js', './src/moduls/customer/site.router.js'], // Path to the API docs
+  apis: [
+    './src/moduls/users/user.router.js', 
+    './src/moduls/customer/channelPartner.router.js', 
+    './src/moduls/customer/channelPartnerIncentive.router.js',
+    './src/moduls/customer/architect.router.js', 
+    './src/moduls/customer/party.router.js', 
+    './src/moduls/customer/site.router.js'
+  ], // Path to the API docs
 };
 
 const swaggerDocs = swaggerJSDoc(swaggerOptions);

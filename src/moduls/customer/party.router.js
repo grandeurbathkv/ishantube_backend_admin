@@ -22,7 +22,6 @@ const router = express.Router();
  *     Party:
  *       type: object
  *       required:
- *         - Party_id
  *         - Party_Billing_Name
  *         - Contact_Person
  *         - Mobile_Number
@@ -35,7 +34,8 @@ const router = express.Router();
  *       properties:
  *         Party_id:
  *           type: string
- *           description: Party Unique ID
+ *           description: Party Unique ID (auto-generated)
+ *           readOnly: true
  *           example: "PTY001"
  *         Party_Billing_Name:
  *           type: string

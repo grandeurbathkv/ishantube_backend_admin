@@ -47,12 +47,13 @@ const partyStateSchema = new mongoose.Schema({
 const partySchema = new mongoose.Schema({
   Party_id: {
     type: String,
-    required: [true, 'Party ID is required'],
+    required: false, // Now optional, will be auto-generated
     unique: true,
     trim: true,
     validate: {
       validator: function(v) {
-        return v && v.length > 0;
+        // Allow empty/undefined for auto-generation
+        return v === undefined || v === null || v.length === 0 || (typeof v === 'string' && v.length > 0);
       },
       message: 'Party ID cannot be empty'
     }
@@ -233,9 +234,23 @@ partySchema.virtual('userDetails', {
 partySchema.set('toJSON', { virtuals: true });
 partySchema.set('toObject', { virtuals: true });
 
-// Pre-save middleware to validate references
+// Pre-save middleware to auto-generate Party_id and validate references
 partySchema.pre('save', async function(next) {
   try {
+    // Auto-generate Party_id if not provided
+    if (!this.Party_id) {
+      // Find the last Party and extract the number
+      const lastParty = await this.constructor.findOne({ Party_id: /^PTY\d{3}$/ }, {}, { sort: { Party_id: -1 } });
+      let nextNumber = 1;
+      if (lastParty && lastParty.Party_id) {
+        const lastNumber = parseInt(lastParty.Party_id.replace('PTY', ''));
+        if (!isNaN(lastNumber)) {
+          nextNumber = lastNumber + 1;
+        }
+      }
+      this.Party_id = `PTY${nextNumber.toString().padStart(3, '0')}`;
+    }
+
     // Check if User exists
     const User = mongoose.model('User');
     const userExists = await User.findById(this.Party_default_User_id);

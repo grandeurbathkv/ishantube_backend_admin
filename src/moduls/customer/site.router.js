@@ -23,7 +23,6 @@ const router = express.Router();
  *     Site:
  *       type: object
  *       required:
- *         - Site_id
  *         - Site_Billing_Name
  *         - Contact_Person
  *         - Mobile_Number
@@ -36,7 +35,8 @@ const router = express.Router();
  *       properties:
  *         Site_id:
  *           type: string
- *           description: Site Unique ID
+ *           description: Site Unique ID (auto-generated)
+ *           readOnly: true
  *           example: "SITE001"
  *         Site_Billing_Name:
  *           type: string

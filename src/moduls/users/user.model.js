@@ -83,5 +83,9 @@ userSchema.pre('save', async function(next) {
 userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.Password);
 };
+userSchema.statics.getIdNameDropdown = async function() {
+  return this.find({}, { _id: 1, 'User Name': 1 }).sort({ 'User Name': 1 });
+};
+
 const User = mongoose.model('User', userSchema);
 export default User;

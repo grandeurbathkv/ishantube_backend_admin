@@ -1,3 +1,18 @@
+// @desc    Get all Channel Partner IDs and Names for dropdown
+// @route   GET /api/channelpartner/dropdown
+// @access  Protected
+// ...existing code...
+export const getChannelPartnerDropdown = async (req, res, next) => {
+  try {
+    const dropdown = await ChannelPartner.getIdNameDropdown();
+    return res.status(200).json({
+      message: 'Channel Partner dropdown data',
+      data: dropdown,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 import { ChannelPartner } from './channelPartner.model.js';
 
 // @desc    Channel Partner CRUD Operations (Create, Read, Update, Delete)

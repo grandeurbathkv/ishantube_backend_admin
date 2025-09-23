@@ -47,12 +47,13 @@ const siteStateSchema = new mongoose.Schema({
 const siteSchema = new mongoose.Schema({
   Site_id: {
     type: String,
-    required: [true, 'Site ID is required'],
+    required: false, // Now optional, will be auto-generated
     unique: true,
     trim: true,
     validate: {
       validator: function(v) {
-        return v && v.length > 0;
+        // Allow empty/undefined for auto-generation
+        return v === undefined || v === null || v.length === 0 || (typeof v === 'string' && v.length > 0);
       },
       message: 'Site ID cannot be empty'
     }
@@ -250,9 +251,23 @@ siteSchema.virtual('userDetails', {
 siteSchema.set('toJSON', { virtuals: true });
 siteSchema.set('toObject', { virtuals: true });
 
-// Pre-save middleware to validate references
+// Pre-save middleware to auto-generate Site_id and validate references
 siteSchema.pre('save', async function(next) {
   try {
+    // Auto-generate Site_id if not provided
+    if (!this.Site_id) {
+      // Find the last Site and extract the number
+      const lastSite = await this.constructor.findOne({ Site_id: /^SITE\d{3}$/ }, {}, { sort: { Site_id: -1 } });
+      let nextNumber = 1;
+      if (lastSite && lastSite.Site_id) {
+        const lastNumber = parseInt(lastSite.Site_id.replace('SITE', ''));
+        if (!isNaN(lastNumber)) {
+          nextNumber = lastNumber + 1;
+        }
+      }
+      this.Site_id = `SITE${nextNumber.toString().padStart(3, '0')}`;
+    }
+
     // Check if User exists
     const User = mongoose.model('User');
     const userExists = await User.findById(this.Site_User_id);

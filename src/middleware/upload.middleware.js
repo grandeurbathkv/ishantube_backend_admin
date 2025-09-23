@@ -1,18 +1,65 @@
+// File filter for images only
+const fileFilter = (req, file, cb) => {
+  if (file.fieldname === 'Image') {
+    // Check if file is an image
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed for Image field'), false);
+    }
+  } else {
+    cb(new Error('Unexpected field'), false);
+  }
+};
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
 // Create uploads directories if they don't exist
+
 const channelPartnersDir = 'uploads/channel-partners';
 const usersDir = 'uploads/users';
+const incentivesDir = 'uploads/incentives';
+const architectsDir = 'uploads/architects';
+
 
 if (!fs.existsSync(channelPartnersDir)) {
   fs.mkdirSync(channelPartnersDir, { recursive: true });
 }
-
 if (!fs.existsSync(usersDir)) {
   fs.mkdirSync(usersDir, { recursive: true });
 }
+if (!fs.existsSync(incentivesDir)) {
+  fs.mkdirSync(incentivesDir, { recursive: true });
+}
+if (!fs.existsSync(architectsDir)) {
+  fs.mkdirSync(architectsDir, { recursive: true });
+}
+
+
+// Configure storage for Architects
+const architectStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, architectsDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp and original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, `architect-${uniqueSuffix}${extension}`);
+  }
+});
+// Configure multer for Architects
+const architectUpload = multer({
+  storage: architectStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  }
+});
+
+// Middleware for single image upload - Architect
+export const uploadArchitectImage = architectUpload.single('Image');
 
 // Configure storage for Channel Partners
 const channelPartnerStorage = multer.diskStorage({
@@ -40,19 +87,20 @@ const userStorage = multer.diskStorage({
   }
 });
 
-// File filter for images only
-const fileFilter = (req, file, cb) => {
-  if (file.fieldname === 'Image') {
-    // Check if file is an image
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed for Image field'), false);
-    }
-  } else {
-    cb(new Error('Unexpected field'), false);
+// Configure storage for Incentives
+const incentiveStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, incentivesDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp and original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, `incentive-${uniqueSuffix}${extension}`);
   }
-};
+});
+
+
 
 // Configure multer for Channel Partners
 const channelPartnerUpload = multer({
@@ -72,11 +120,23 @@ const userUpload = multer({
   }
 });
 
+// Configure multer for Incentives
+const incentiveUpload = multer({
+  storage: incentiveStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  }
+});
+
 // Middleware for single image upload - Channel Partner
 export const uploadChannelPartnerImage = channelPartnerUpload.single('Image');
 
 // Middleware for single image upload - User
 export const uploadUserImage = userUpload.single('Image');
+
+// Middleware for single image upload - Incentive
+export const uploadIncentiveImage = incentiveUpload.single('Image');
 
 // Error handling middleware for multer
 export const handleUploadError = (error, req, res, next) => {

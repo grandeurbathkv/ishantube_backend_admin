@@ -1,3 +1,17 @@
+// @desc    Get all User _id and User Name for dropdown
+// @route   GET /api/user/dropdown
+// @access  Protected
+export const getUserDropdown = async (req, res, next) => {
+  try {
+    const dropdown = await User.getIdNameDropdown();
+    return res.status(200).json({
+      message: 'User dropdown data',
+      data: dropdown,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 import User from './user.model.js';
 import jwt from 'jsonwebtoken';
 
