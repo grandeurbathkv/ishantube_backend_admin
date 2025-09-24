@@ -158,11 +158,11 @@ const partySchema = new mongoose.Schema({
   Party_default_User_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Party Default User ID is required']
+    // required: [true, 'Party Default User ID is required']
   },
   Party_default_cp_id: {
     type: String,
-    required: [true, 'Party Default Channel Partner ID is required'],
+    // required: [true, 'Party Default Channel Partner ID is required'],
     validate: {
       validator: function(v) {
         // Allow either valid CP_id or "NA"
@@ -173,7 +173,7 @@ const partySchema = new mongoose.Schema({
   },
   Party_default_Arch_id: {
     type: String,
-    required: [true, 'Party Default Architect ID is required'],
+    // required: [true, 'Party Default Architect ID is required'],
     validate: {
       validator: function(v) {
         // Allow either valid Arch_id or "NA"

@@ -186,7 +186,7 @@ const siteSchema = new mongoose.Schema({
   Site_User_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Site User ID is required']
+    // required: [true, 'Site User ID is required']
   },
   Site_cp_id: {
     type: String,
