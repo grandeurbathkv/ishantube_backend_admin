@@ -17,7 +17,8 @@ import jwt from 'jsonwebtoken';
 
 // Generate JWT token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  // Set token expiry to 30 days (1 month)
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
 // @desc    Register a new user
