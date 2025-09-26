@@ -2,7 +2,8 @@ import express from 'express';
 import {
   manageParties,
   manageDropdownData,
-  getPartyAnalytics
+  getPartyAnalytics,
+  getAllPartiesDropdown
 } from './party.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 
@@ -463,7 +464,7 @@ router.route('/:id').get(protect, manageParties).put(protect, manageParties).del
  */
 
 // Dropdown management routes
-router.route('/dropdown/:type').get(protect, manageDropdownData).post(protect, manageDropdownData);
+// router.route('/dropdown/:type').get(protect, manageDropdownData).post(protect, manageDropdownData);
 router.route('/dropdown/:type/:id').put(protect, manageDropdownData).delete(protect, manageDropdownData);
 
 // ========== Analytics Routes ==========
@@ -505,5 +506,35 @@ router.route('/dropdown/:type/:id').put(protect, manageDropdownData).delete(prot
  *         description: Not authorized
  */
 router.get('/analytics', protect, getPartyAnalytics);
+
+/**
+ * @swagger
+ * /api/party/dropdown/all:
+ *   get:
+ *     summary: Get all Party ID & Name dropdown
+ *     tags: [Party]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search Party by ID or Billing Name
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: string
+ *           example: all
+ *         description: Limit number of records (use "all" for full list)
+ *     responses:
+ *       200:
+ *         description: All Party dropdown data retrieved successfully
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/dropdown/all", protect, getAllPartiesDropdown);
+
+
 
 export default router;
