@@ -543,8 +543,54 @@ const getPartyAnalytics = async (req, res) => {
   }
 };
 
+// ========== Get All Party Dropdown ==========
+const getAllPartiesDropdown = async (req, res) => {
+  try {
+    const { search, limit = 100 } = req.query;
+
+    let filter = {};
+
+    // Search functionality
+    if (search) {
+      filter.$or = [
+        { Party_id: { $regex: search, $options: 'i' } },
+        { Party_Billing_Name: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const parties = await Party.find(filter)
+      .select('Party_id Party_Billing_Name')
+      .sort({ Party_id: 1 })
+      .limit(parseInt(limit));
+
+    const dropdownData = parties.map(party => ({
+      id: party.Party_id,
+      name: party.Party_Billing_Name,
+      label: `${party.Party_id} - ${party.Party_Billing_Name}`
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: 'All Party dropdown data retrieved successfully',
+      count: dropdownData.length,
+      filters: { search, limit },
+      data: dropdownData
+    });
+
+  } catch (error) {
+    console.error('Party Dropdown Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+
 export {
   manageParties,
   manageDropdownData,
-  getPartyAnalytics
+  getPartyAnalytics,
+  getAllPartiesDropdown
 };
