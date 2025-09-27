@@ -1,6 +1,6 @@
 // File filter for images only
 const fileFilter = (req, file, cb) => {
-  if (file.fieldname === 'Image') {
+  if (file.fieldname === 'Image' || file.fieldname === 'Prod_image') {
     // Check if file is an image
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
@@ -21,6 +21,7 @@ const channelPartnersDir = 'uploads/channel-partners';
 const usersDir = 'uploads/users';
 const incentivesDir = 'uploads/incentives';
 const architectsDir = 'uploads/architects';
+const productsDir = 'uploads/products';
 
 
 if (!fs.existsSync(channelPartnersDir)) {
@@ -34,6 +35,9 @@ if (!fs.existsSync(incentivesDir)) {
 }
 if (!fs.existsSync(architectsDir)) {
   fs.mkdirSync(architectsDir, { recursive: true });
+}
+if (!fs.existsSync(productsDir)) {
+  fs.mkdirSync(productsDir, { recursive: true });
 }
 
 
@@ -137,6 +141,31 @@ export const uploadUserImage = userUpload.single('Image');
 
 // Middleware for single image upload - Incentive
 export const uploadIncentiveImage = incentiveUpload.single('Image');
+
+// Configure storage for Products
+const productStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, productsDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp and original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, `product-${uniqueSuffix}${extension}`);
+  }
+});
+
+// Configure multer for Products
+const productUpload = multer({
+  storage: productStorage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB limit
+  }
+});
+
+// Middleware for single image upload - Product
+export const uploadProductImage = productUpload.single('Prod_image');
 
 // Error handling middleware for multer
 export const handleUploadError = (error, req, res, next) => {
