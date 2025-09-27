@@ -53,7 +53,8 @@ const swaggerOptions = {
     './src/moduls/customer/channelPartnerIncentive.router.js',
     './src/moduls/customer/architect.router.js', 
     './src/moduls/customer/party.router.js', 
-    './src/moduls/customer/site.router.js'
+    './src/moduls/customer/site.router.js',
+    './src/moduls/Inventory/product.router.js',
   ], // Path to the API docs
 };
 

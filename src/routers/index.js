@@ -5,6 +5,8 @@ import channelPartnerIncentiveRouter from '../moduls/customer/channelPartnerInce
 import architectRouter from '../moduls/customer/architect.router.js';
 import partyRouter from '../moduls/customer/party.router.js';
 import siteRouter from '../moduls/customer/site.router.js';
+import productRouter from '../moduls/Inventory/product.router.js';
+
 const router = express.Router();
 
 router.use('/user', userRouter);
@@ -13,5 +15,7 @@ router.use('/incentives', channelPartnerIncentiveRouter);
 router.use('/architect', architectRouter);
 router.use('/party', partyRouter);
 router.use('/site', siteRouter);
+router.use('/product', productRouter);
+
 
 export default router;
