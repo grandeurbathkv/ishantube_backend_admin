@@ -6,7 +6,7 @@ import {
   manageArchTypes,
   manageCities,
   manageStates,
-  getArchitectCategories,
+  manageArchitectCategories,
 } from './architect.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { uploadArchitectImage, processUploadedFile } from '../../middleware/upload.middleware.js';
@@ -316,7 +316,7 @@ const router = express.Router();
 router.route('/arch-types').post(protect, manageArchTypes).get(protect, manageArchTypes);
 router.route('/cities').post(protect, manageCities).get(protect, manageCities);
 router.route('/states').post(protect, manageStates).get(protect, manageStates);
-router.route('/categories').get(protect, getArchitectCategories);
+router.route('/categories').post(protect, manageArchitectCategories).get(protect, manageArchitectCategories);
 
 // Main CRUD routes (with image upload for create/update)
 router.route('/').post(protect, uploadArchitectImage, processUploadedFile, manageArchitects).get(protect, manageArchitects);
@@ -571,6 +571,32 @@ router.route('/dropdown').get(protect, manageDropdownData).post(protect, manageD
 /**
  * @swagger
  * /api/architect/categories:
+ *   post:
+ *     summary: Create/Validate a new Architect Category
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - category_name
+ *             properties:
+ *               category_name:
+ *                 type: string
+ *                 description: Category name (must be A, B, C, or D)
+ *                 example: "A"
+ *                 enum: [A, B, C, D]
+ *     responses:
+ *       201:
+ *         description: Category validation successful
+ *       400:
+ *         description: Invalid category or category name required
+ *       401:
+ *         description: Not authorized
  *   get:
  *     summary: Get all Architect Categories
  *     tags: [Architect]

@@ -498,17 +498,54 @@ export const manageStates = async (req, res, next) => {
 };
 
 // ========== Architect Category Management ==========
-// @desc    Get all Architect Categories (Static list)
-// @route   GET /api/architect/categories
+// @desc    Architect Category Operations (Create, Get All)
+// @route   POST /api/architect/categories (Create)
+// @route   GET /api/architect/categories (Get All)
 // @access  Protected
-export const getArchitectCategories = async (req, res, next) => {
+export const manageArchitectCategories = async (req, res, next) => {
   try {
-    const categories = ['A', 'B', 'C', 'D'];
-    return res.status(200).json({
-      message: 'Architect categories retrieved successfully',
-      count: categories.length,
-      data: categories.map(cat => ({ category: cat })),
-    });
+    const { method } = req;
+    console.log(`Categories API called with method: ${method}`);
+
+    switch (method) {
+      case 'POST':
+        // CREATE ARCHITECT CATEGORY
+        const { category_name } = req.body;
+        
+        if (!category_name) {
+          return res.status(400).json({ message: 'Category name is required' });
+        }
+
+        // Check if category name is valid (A, B, C, D)
+        const validCategories = ['A', 'B', 'C', 'D'];
+        if (!validCategories.includes(category_name.toUpperCase())) {
+          return res.status(400).json({ 
+            message: 'Invalid category. Must be A, B, C, or D',
+            validCategories: validCategories
+          });
+        }
+
+        // For now, just return success since categories are predefined
+        // In future, you can store custom categories in database
+        return res.status(201).json({
+          message: 'Category validation successful',
+          data: { category: category_name.toUpperCase() },
+        });
+
+      case 'GET':
+        // GET ALL ARCHITECT CATEGORIES
+        console.log('Getting all architect categories...');
+        const categories = ['A', 'B', 'C', 'D'];
+        console.log(`Found ${categories.length} categories`);
+        return res.status(200).json({
+          message: 'Architect categories retrieved successfully',
+          count: categories.length,
+          data: categories.map(cat => ({ category: cat })),
+        });
+
+      default:
+        return res.status(405).json({ message: 'Method not allowed' });
+    }
   } catch (error) {
     next(error);
   }
