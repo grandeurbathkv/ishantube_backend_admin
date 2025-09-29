@@ -212,7 +212,41 @@ router.get('/dropdown', protect, getChannelPartnerDropdown);
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/ChannelPartner'
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/ChannelPartner'
+ *                       - type: object
+ *                         properties:
+ *                           incentives:
+ *                             type: array
+ *                             description: List of incentives for this channel partner
+ *                             items:
+ *                               type: object
+ *                               properties:
+ *                                 CP_id:
+ *                                   type: string
+ *                                   example: "CP001"
+ *                                 Brand:
+ *                                   type: string
+ *                                   example: "Samsung"
+ *                                 Image:
+ *                                   type: string
+ *                                   example: "incentive-123456789.jpg"
+ *                                 Incentive_type:
+ *                                   type: string
+ *                                   enum: [Percentage, Amount]
+ *                                   example: "Percentage"
+ *                                 Incentive_factor:
+ *                                   type: number
+ *                                   example: 15.50
+ *                                 status:
+ *                                   type: boolean
+ *                                   example: true
+ *                                 createdAt:
+ *                                   type: string
+ *                                   format: date-time
+ *                                 updatedAt:
+ *                                   type: string
+ *                                   format: date-time
  *       401:
  *         description: Not authorized
  */
@@ -246,7 +280,41 @@ router.get('/dropdown', protect, getChannelPartnerDropdown);
  *                   type: object
  *                   properties:
  *                     partner:
- *                       $ref: '#/components/schemas/ChannelPartner'
+ *                       allOf:
+ *                         - $ref: '#/components/schemas/ChannelPartner'
+ *                         - type: object
+ *                           properties:
+ *                             incentives:
+ *                               type: array
+ *                               description: List of incentives for this channel partner
+ *                               items:
+ *                                 type: object
+ *                                 properties:
+ *                                   CP_id:
+ *                                     type: string
+ *                                     example: "CP001"
+ *                                   Brand:
+ *                                     type: string
+ *                                     example: "Samsung"
+ *                                   Image:
+ *                                     type: string
+ *                                     example: "incentive-123456789.jpg"
+ *                                   Incentive_type:
+ *                                     type: string
+ *                                     enum: [Percentage, Amount]
+ *                                     example: "Percentage"
+ *                                   Incentive_factor:
+ *                                     type: number
+ *                                     example: 15.50
+ *                                   status:
+ *                                     type: boolean
+ *                                     example: true
+ *                                   createdAt:
+ *                                     type: string
+ *                                     format: date-time
+ *                                   updatedAt:
+ *                                     type: string
+ *                                     format: date-time
  *       404:
  *         description: Channel Partner not found
  *       401:
