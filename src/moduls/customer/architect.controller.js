@@ -339,3 +339,177 @@ export const manageDropdownData = async (req, res, next) => {
     next(error);
   }
 };
+
+// ========== Architect Type Management ==========
+// @desc    Architect Type Operations (Create, Get All)
+// @route   POST /api/architect/arch-types (Create)
+// @route   GET /api/architect/arch-types (Get All)
+// @access  Protected
+export const manageArchTypes = async (req, res, next) => {
+  try {
+    const { method } = req;
+    console.log(`ArchTypes API called with method: ${method}`);
+
+    switch (method) {
+      case 'POST':
+        // CREATE ARCHITECT TYPE
+        const { type_name, description } = req.body;
+        
+        if (!type_name) {
+          return res.status(400).json({ message: 'Architect type name is required' });
+        }
+
+        const existingType = await ArchType.findOne({ type_name });
+        if (existingType) {
+          return res.status(400).json({ message: 'Architect type already exists' });
+        }
+
+        const newArchType = await ArchType.create({ type_name, description });
+        return res.status(201).json({
+          message: 'Architect type created successfully',
+          data: newArchType,
+        });
+
+      case 'GET':
+        // GET ALL ARCHITECT TYPES
+        console.log('Getting all architect types...');
+        const archTypes = await ArchType.find({}).sort({ type_name: 1 });
+        console.log(`Found ${archTypes.length} architect types`);
+        return res.status(200).json({
+          message: 'Architect types retrieved successfully',
+          count: archTypes.length,
+          data: archTypes,
+        });
+
+      default:
+        return res.status(405).json({ message: 'Method not allowed' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ========== City Management ==========
+// @desc    City Operations (Create, Get All)
+// @route   POST /api/architect/cities (Create)
+// @route   GET /api/architect/cities (Get All)
+// @access  Protected
+export const manageCities = async (req, res, next) => {
+  try {
+    const { method } = req;
+    console.log(`Cities API called with method: ${method}`);
+
+    switch (method) {
+      case 'POST':
+        // CREATE CITY
+        const { city_name, state_code } = req.body;
+        
+        if (!city_name) {
+          return res.status(400).json({ message: 'City name is required' });
+        }
+
+        const existingCity = await City.findOne({ city_name });
+        if (existingCity) {
+          return res.status(400).json({ message: 'City already exists' });
+        }
+
+        const cityData = { city_name };
+        if (state_code !== undefined && state_code !== null && state_code !== '') {
+          cityData.state_code = state_code;
+        }
+
+        const newCity = await City.create(cityData);
+        return res.status(201).json({
+          message: 'City created successfully',
+          data: newCity,
+        });
+
+      case 'GET':
+        // GET ALL CITIES
+        console.log('Getting all cities...');
+        const cities = await City.find({}).sort({ city_name: 1 });
+        console.log(`Found ${cities.length} cities`);
+        return res.status(200).json({
+          message: 'Cities retrieved successfully',
+          count: cities.length,
+          data: cities,
+        });
+
+      default:
+        return res.status(405).json({ message: 'Method not allowed' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ========== State Management ==========
+// @desc    State Operations (Create, Get All)
+// @route   POST /api/architect/states (Create)
+// @route   GET /api/architect/states (Get All)
+// @access  Protected
+export const manageStates = async (req, res, next) => {
+  try {
+    const { method } = req;
+    console.log(`States API called with method: ${method}`);
+
+    switch (method) {
+      case 'POST':
+        // CREATE STATE
+        const { state_name, state_code } = req.body;
+        
+        if (!state_name) {
+          return res.status(400).json({ message: 'State name is required' });
+        }
+
+        const existingState = await State.findOne({ state_name });
+        if (existingState) {
+          return res.status(400).json({ message: 'State already exists' });
+        }
+
+        const stateData = { state_name };
+        if (state_code !== undefined && state_code !== null && state_code !== '') {
+          stateData.state_code = state_code;
+        }
+
+        const newState = await State.create(stateData);
+        return res.status(201).json({
+          message: 'State created successfully',
+          data: newState,
+        });
+
+      case 'GET':
+        // GET ALL STATES
+        console.log('Getting all states...');
+        const states = await State.find({}).sort({ state_name: 1 });
+        console.log(`Found ${states.length} states`);
+        return res.status(200).json({
+          message: 'States retrieved successfully',
+          count: states.length,
+          data: states,
+        });
+
+      default:
+        return res.status(405).json({ message: 'Method not allowed' });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ========== Architect Category Management ==========
+// @desc    Get all Architect Categories (Static list)
+// @route   GET /api/architect/categories
+// @access  Protected
+export const getArchitectCategories = async (req, res, next) => {
+  try {
+    const categories = ['A', 'B', 'C', 'D'];
+    return res.status(200).json({
+      message: 'Architect categories retrieved successfully',
+      count: categories.length,
+      data: categories.map(cat => ({ category: cat })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};

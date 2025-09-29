@@ -3,6 +3,10 @@ import express from 'express';
 import {
   manageArchitects,
   manageDropdownData,
+  manageArchTypes,
+  manageCities,
+  manageStates,
+  getArchitectCategories,
 } from './architect.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { uploadArchitectImage, processUploadedFile } from '../../middleware/upload.middleware.js';
@@ -307,6 +311,13 @@ const router = express.Router();
  *         description: Not authorized
  */
 
+// ========== Individual Management Routes (MUST come before /:id route) ==========
+// Individual management routes (Create and Get All only)
+router.route('/arch-types').post(protect, manageArchTypes).get(protect, manageArchTypes);
+router.route('/cities').post(protect, manageCities).get(protect, manageCities);
+router.route('/states').post(protect, manageStates).get(protect, manageStates);
+router.route('/categories').get(protect, getArchitectCategories);
+
 // Main CRUD routes (with image upload for create/update)
 router.route('/').post(protect, uploadArchitectImage, processUploadedFile, manageArchitects).get(protect, manageArchitects);
 router.route('/:id').get(protect, manageArchitects).put(protect, uploadArchitectImage, processUploadedFile, manageArchitects).delete(protect, manageArchitects);
@@ -402,5 +413,191 @@ router.route('/:id').get(protect, manageArchitects).put(protect, uploadArchitect
 
 // Dropdown management routes
 router.route('/dropdown').get(protect, manageDropdownData).post(protect, manageDropdownData);
+
+// ========== Individual Management Routes ==========
+
+/**
+ * @swagger
+ * /api/architect/arch-types:
+ *   post:
+ *     summary: Create a new Architect Type
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - type_name
+ *             properties:
+ *               type_name:
+ *                 type: string
+ *                 description: Architect type name
+ *                 example: "Commercial"
+ *               description:
+ *                 type: string
+ *                 description: Type description (optional)
+ *                 example: "Specializes in commercial buildings"
+ *     responses:
+ *       201:
+ *         description: Architect type created successfully
+ *       400:
+ *         description: Architect type already exists or invalid data
+ *       401:
+ *         description: Not authorized
+ *   get:
+ *     summary: Get all Architect Types
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Architect types retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 count:
+ *                   type: number
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       type_name:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *       401:
+ *         description: Not authorized
+ */
+
+/**
+ * @swagger
+ * /api/architect/cities:
+ *   post:
+ *     summary: Create a new City
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - city_name
+ *             properties:
+ *               city_name:
+ *                 type: string
+ *                 description: City name
+ *                 example: "Mumbai"
+ *               state_code:
+ *                 type: string
+ *                 description: State code (optional)
+ *                 example: "MH"
+ *     responses:
+ *       201:
+ *         description: City created successfully
+ *       400:
+ *         description: City already exists or invalid data
+ *       401:
+ *         description: Not authorized
+ *   get:
+ *     summary: Get all Cities
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Cities retrieved successfully
+ *       401:
+ *         description: Not authorized
+ */
+
+/**
+ * @swagger
+ * /api/architect/states:
+ *   post:
+ *     summary: Create a new State
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - state_name
+ *             properties:
+ *               state_name:
+ *                 type: string
+ *                 description: State name
+ *                 example: "Maharashtra"
+ *               state_code:
+ *                 type: string
+ *                 description: State code (optional)
+ *                 example: "MH"
+ *     responses:
+ *       201:
+ *         description: State created successfully
+ *       400:
+ *         description: State already exists or invalid data
+ *       401:
+ *         description: Not authorized
+ *   get:
+ *     summary: Get all States
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: States retrieved successfully
+ *       401:
+ *         description: Not authorized
+ */
+
+/**
+ * @swagger
+ * /api/architect/categories:
+ *   get:
+ *     summary: Get all Architect Categories
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Architect categories retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 count:
+ *                   type: number
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       category:
+ *                         type: string
+ *                         enum: [A, B, C, D]
+ *       401:
+ *         description: Not authorized
+ */
 
 export default router;
