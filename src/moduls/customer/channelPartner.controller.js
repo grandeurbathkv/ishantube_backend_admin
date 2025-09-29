@@ -53,10 +53,17 @@ export const manageChannelPartners = async (req, res, next) => {
             return res.status(404).json({ message: 'Channel Partner not found' });
           }
 
+          // Get incentives for this channel partner
+          const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+          const incentives = await ChannelPartnerIncentive.find({ CP_id: id });
+
           return res.status(200).json({
             message: 'Channel Partner retrieved successfully',
             data: {
-              partner: channelPartner,
+              partner: {
+                ...channelPartner.toObject(),
+                incentives: incentives || []
+              },
             },
           });
         } else {
@@ -77,11 +84,25 @@ export const manageChannelPartners = async (req, res, next) => {
 
           const channelPartners = await ChannelPartner.find(filter).sort({ CP_Name: 1 });
 
+          // Get incentives for all channel partners
+          const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+          
+          // Create a response with incentive data
+          const partnersWithIncentives = await Promise.all(
+            channelPartners.map(async (partner) => {
+              const incentives = await ChannelPartnerIncentive.find({ CP_id: partner.CP_id });
+              return {
+                ...partner.toObject(),
+                incentives: incentives || []
+              };
+            })
+          );
+
           return res.status(200).json({
             message: `Channel Partners retrieved successfully${Object.keys(filter).length ? ' with filters' : ''}`,
-            count: channelPartners.length,
+            count: partnersWithIncentives.length,
             filters: filter,
-            data: channelPartners,
+            data: partnersWithIncentives,
           });
         }
 
