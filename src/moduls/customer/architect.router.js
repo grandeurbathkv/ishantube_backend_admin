@@ -59,9 +59,8 @@ const router = express.Router();
  *           example: "Residential"
  *         Arch_category:
  *           type: string
- *           enum: [A, B, C, D]
  *           description: Architect Category
- *           example: "A"
+ *           example: "Premium"
  *         Image:
  *           type: string
  *           description: Architect image (not required, can be blank)
@@ -587,14 +586,13 @@ router.route('/dropdown').get(protect, manageDropdownData).post(protect, manageD
  *             properties:
  *               category_name:
  *                 type: string
- *                 description: Category name (must be A, B, C, or D)
- *                 example: "A"
- *                 enum: [A, B, C, D]
+ *                 description: Category name (can be any string value)
+ *                 example: "Premium"
  *     responses:
  *       201:
- *         description: Category validation successful
+ *         description: Category created successfully
  *       400:
- *         description: Invalid category or category name required
+ *         description: Category name required
  *       401:
  *         description: Not authorized
  *   get:

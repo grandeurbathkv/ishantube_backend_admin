@@ -166,12 +166,15 @@ const manageSites = async (req, res) => {
             .skip(skip)
             .limit(parseInt(limit));
 
-          // Include detailed references if requested
+          // Always include party name, and full details if requested
           if (include_details === 'true') {
             query = query
               .populate('Site_User_id', 'name email')
-              .populate('partyDetails', 'Party_Billing_Name Contact_Person Mobile_Number')
-              .populate('channelPartnerDetails', 'CP_Name Mobile_Number');
+              .populate('partyDetails', 'Party_Billing_Name Contact_Person Mobile_Number Email_id Party_Address')
+              .populate('channelPartnerDetails', 'CP_Name Mobile_Number Email_id CP_Address');
+          } else {
+            // Always populate party name even without include_details
+            query = query.populate('partyDetails', 'Party_Billing_Name');
           }
 
           const sites = await query;

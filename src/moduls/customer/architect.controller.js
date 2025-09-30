@@ -516,26 +516,17 @@ export const manageArchitectCategories = async (req, res, next) => {
           return res.status(400).json({ message: 'Category name is required' });
         }
 
-        // Check if category name is valid (A, B, C, D)
-        const validCategories = ['A', 'B', 'C', 'D'];
-        if (!validCategories.includes(category_name.toUpperCase())) {
-          return res.status(400).json({ 
-            message: 'Invalid category. Must be A, B, C, or D',
-            validCategories: validCategories
-          });
-        }
-
-        // For now, just return success since categories are predefined
-        // In future, you can store custom categories in database
+        // Accept any category name without validation
         return res.status(201).json({
-          message: 'Category validation successful',
-          data: { category: category_name.toUpperCase() },
+          message: 'Category created successfully',
+          data: { category: category_name },
         });
 
       case 'GET':
         // GET ALL ARCHITECT CATEGORIES
         console.log('Getting all architect categories...');
-        const categories = ['A', 'B', 'C', 'D'];
+        // For now returning example categories - in future you can store in database
+        const categories = ['A', 'B', 'C', 'D', 'Premium', 'Standard', 'Basic'];
         console.log(`Found ${categories.length} categories`);
         return res.status(200).json({
           message: 'Architect categories retrieved successfully',
