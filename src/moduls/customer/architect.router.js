@@ -7,6 +7,7 @@ import {
   manageCities,
   manageStates,
   manageArchitectCategories,
+  getArchitectNames
 } from './architect.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { uploadArchitectImage, processUploadedFile } from '../../middleware/upload.middleware.js';
@@ -317,6 +318,8 @@ router.route('/cities').post(protect, manageCities).get(protect, manageCities);
 router.route('/states').post(protect, manageStates).get(protect, manageStates);
 router.route('/categories').post(protect, manageArchitectCategories).get(protect, manageArchitectCategories);
 
+router.route('/names').get(protect, getArchitectNames);
+
 // Main CRUD routes (with image upload for create/update)
 router.route('/').post(protect, uploadArchitectImage, processUploadedFile, manageArchitects).get(protect, manageArchitects);
 router.route('/:id').get(protect, manageArchitects).put(protect, uploadArchitectImage, processUploadedFile, manageArchitects).delete(protect, manageArchitects);
@@ -623,5 +626,44 @@ router.route('/dropdown').get(protect, manageDropdownData).post(protect, manageD
  *       401:
  *         description: Not authorized
  */
+
+
+/**
+ * @swagger
+ * /api/architect/names:
+ *   get:
+ *     summary: Get list of Architect Names only
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Architect names retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Architect names retrieved successfully"
+ *                 count:
+ *                   type: number
+ *                   example: 10
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       Arch_id:
+ *                         type: string
+ *                         example: "ARCH001"
+ *                       Arch_Name:
+ *                         type: string
+ *                         example: "John Smith"
+ *       401:
+ *         description: Not authorized
+ */
+
 
 export default router;
