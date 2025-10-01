@@ -541,3 +541,29 @@ export const manageArchitectCategories = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getArchitectNames = async (req, res, next) => {
+  try {
+    console.log('Getting architect names list...');
+    
+    // Get only Arch_Name field from all architects
+    const architectNames = await Architect.find({}, { Arch_Name: 1, Arch_id: 1, _id: 0 }).sort({ Arch_Name: 1 });
+    
+    // Extract just the names array
+    const namesList = architectNames.map(architect => ({
+      Arch_id: architect.Arch_id,
+      Arch_Name: architect.Arch_Name
+    }));
+    
+    console.log(`Found ${namesList.length} architect names`);
+    
+    return res.status(200).json({
+      message: 'Architect names retrieved successfully',
+      count: namesList.length,
+      data: namesList,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
