@@ -213,3 +213,52 @@ export const processUploadedFile = (req, res, next) => {
   }
   next();
 };
+
+// Create Excel uploads directory if it doesn't exist
+const excelDir = 'uploads/excel';
+if (!fs.existsSync(excelDir)) {
+  fs.mkdirSync(excelDir, { recursive: true });
+}
+
+// Configure storage for Excel files
+const excelStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, excelDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename with timestamp and original extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    cb(null, `excel-${uniqueSuffix}${extension}`);
+  }
+});
+
+// File filter for Excel files only
+const excelFileFilter = (req, file, cb) => {
+  // Check if file is an Excel file
+  const allowedMimes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel' // .xls
+  ];
+  
+  const allowedExtensions = ['.xlsx', '.xls'];
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  
+  if (allowedMimes.includes(file.mimetype) && allowedExtensions.includes(fileExtension)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only Excel files (.xlsx, .xls) are allowed'), false);
+  }
+};
+
+// Configure multer for Excel files
+const excelUpload = multer({
+  storage: excelStorage,
+  fileFilter: excelFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for Excel files
+  }
+});
+
+// Middleware for Excel file upload
+export const uploadExcelFile = excelUpload.single('file');

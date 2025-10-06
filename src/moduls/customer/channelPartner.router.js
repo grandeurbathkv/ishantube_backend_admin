@@ -2,13 +2,16 @@
 import express from 'express';
 import {
   manageChannelPartners,
-  getChannelPartnerDropdown
+  getChannelPartnerDropdown,
+  uploadChannelPartnersFromExcel,
+  generateChannelPartnersPDF
 } from './channelPartner.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { 
   uploadChannelPartnerImage, 
   handleUploadError, 
-  processUploadedFile 
+  processUploadedFile,
+  uploadExcelFile
 } from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
@@ -48,6 +51,174 @@ const router = express.Router();
  *         description: Not authorized
  */
 router.get('/dropdown', protect, getChannelPartnerDropdown);
+
+/**
+ * @swagger
+ * /api/channelpartner/upload-excel:
+ *   post:
+ *     summary: Upload Channel Partners from Excel file
+ *     tags: [Channel Partner]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx or .xls) containing Channel Partner data. Expected columns - CP_Name, Mobile Number, Email id, CP_Address, status
+ *     responses:
+ *       200:
+ *         description: Excel file processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Excel upload completed. 15/20 records processed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalRows:
+ *                           type: number
+ *                           example: 20
+ *                         successful:
+ *                           type: number
+ *                           example: 15
+ *                         failed:
+ *                           type: number
+ *                           example: 3
+ *                         duplicates:
+ *                           type: number
+ *                           example: 2
+ *                     successful:
+ *                       type: array
+ *                       description: Successfully created records
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 2
+ *                           data:
+ *                             $ref: '#/components/schemas/ChannelPartner'
+ *                     failed:
+ *                       type: array
+ *                       description: Records that failed validation
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 5
+ *                           data:
+ *                             type: object
+ *                           error:
+ *                             type: string
+ *                             example: "Mobile Number is required"
+ *                     duplicates:
+ *                       type: array
+ *                       description: Records that already exist
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 8
+ *                           data:
+ *                             type: object
+ *                           existing:
+ *                             $ref: '#/components/schemas/ChannelPartner'
+ *                           error:
+ *                             type: string
+ *                             example: "Channel Partner with this name or mobile number already exists"
+ *       400:
+ *         description: Invalid file format, validation error, or empty file
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Only .xlsx and .xls files are allowed"
+ *       401:
+ *         description: Not authorized
+ */
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadChannelPartnersFromExcel);
+
+/**
+ * @swagger
+ * /api/channelpartner/export-pdf:
+ *   get:
+ *     summary: Generate and download Channel Partners PDF report
+ *     tags: [Channel Partner]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search filter to apply before generating PDF
+ *         example: "electronics"
+ *       - in: query
+ *         name: includeIncentives
+ *         schema:
+ *           type: string
+ *           enum: [true, false]
+ *           default: false
+ *         description: Whether to include incentives data in the PDF
+ *         example: "true"
+ *     responses:
+ *       200:
+ *         description: PDF file generated and downloaded successfully
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *               description: PDF file containing Channel Partners report
+ *         headers:
+ *           Content-Disposition:
+ *             description: Attachment filename
+ *             schema:
+ *               type: string
+ *               example: 'attachment; filename="channel-partners-2025-01-06.pdf"'
+ *       404:
+ *         description: No Channel Partners found to export
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "No Channel Partners found to export"
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/export-pdf', protect, generateChannelPartnersPDF);
 
 /**
  * @swagger

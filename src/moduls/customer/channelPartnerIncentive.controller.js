@@ -1,8 +1,287 @@
+import fs from 'fs';
+import path from 'path';
+import XLSX from 'xlsx';
+
+// @desc    Upload Channel Partner Incentives from Excel file
+// @route   POST /api/incentives/upload-excel
+// @access  Protected
+export const uploadIncentivesFromExcel = async (req, res, next) => {
+  let filePath = null;
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No Excel file uploaded' });
+    }
+
+    filePath = req.file.path;
+    
+    // Read Excel file
+    const workbook = XLSX.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert to JSON
+    const data = XLSX.utils.sheet_to_json(worksheet);
+    
+    if (data.length === 0) {
+      return res.status(400).json({ message: 'Excel file is empty or has no valid data' });
+    }
+
+    const results = {
+      summary: {
+        totalRows: data.length,
+        successful: 0,
+        failed: 0,
+        duplicates: 0
+      },
+      successful: [],
+      failed: [],
+      duplicates: []
+    };
+
+    // Process each row
+    for (let i = 0; i < data.length; i++) {
+      try {
+        const row = data[i];
+        
+        // Flexible column mapping
+        const incentiveData = {
+          CP_id: row['CP_id'] || row['Channel Partner ID'] || row['CP ID'] || row['cp_id'],
+          Brand: row['Brand'] || row['brand'] || row['BRAND'],
+          Incentive_type: row['Incentive_type'] || row['Incentive Type'] || row['incentive_type'] || row['Type'],
+          Incentive_factor: parseFloat(row['Incentive_factor'] || row['Incentive Factor'] || row['incentive_factor'] || row['Factor'] || 0),
+          status: row['status'] !== undefined ? Boolean(row['status']) : (row['Status'] !== undefined ? Boolean(row['Status']) : true)
+        };
+
+        // Validate required fields
+        if (!incentiveData.CP_id || !incentiveData.Brand || !incentiveData.Incentive_type) {
+          results.failed.push({
+            row: i + 1,
+            data: row,
+            error: 'Missing required fields: CP_id, Brand, or Incentive_type'
+          });
+          results.summary.failed++;
+          continue;
+        }
+
+        // Validate incentive type
+        if (!['Percentage', 'Amount'].includes(incentiveData.Incentive_type)) {
+          results.failed.push({
+            row: i + 1,
+            data: row,
+            error: 'Incentive_type must be either "Percentage" or "Amount"'
+          });
+          results.summary.failed++;
+          continue;
+        }
+
+        // Validate Channel Partner exists
+        const { ChannelPartner } = await import('./channelPartner.model.js');
+        const channelPartnerExists = await ChannelPartner.findOne({ CP_id: incentiveData.CP_id });
+        if (!channelPartnerExists) {
+          results.failed.push({
+            row: i + 1,
+            data: row,
+            error: `Channel Partner with CP_id "${incentiveData.CP_id}" not found`
+          });
+          results.summary.failed++;
+          continue;
+        }
+
+        // Check for duplicates
+        const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+        const existingIncentive = await ChannelPartnerIncentive.findOne({ 
+          CP_id: incentiveData.CP_id, 
+          Brand: incentiveData.Brand 
+        });
+
+        if (existingIncentive) {
+          results.duplicates.push({
+            row: i + 1,
+            data: row,
+            existing: existingIncentive,
+            error: 'Incentive for this CP_id and Brand combination already exists'
+          });
+          results.summary.duplicates++;
+          continue;
+        }
+
+        // Create incentive
+        const newIncentive = await ChannelPartnerIncentive.create(incentiveData);
+        const populatedIncentive = await ChannelPartnerIncentive.findById(newIncentive._id).populate('channelPartner');
+        
+        results.successful.push({
+          row: i + 1,
+          data: populatedIncentive
+        });
+        results.summary.successful++;
+
+      } catch (error) {
+        results.failed.push({
+          row: i + 1,
+          data: data[i],
+          error: error.message
+        });
+        results.summary.failed++;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Excel upload completed. ${results.summary.successful}/${results.summary.totalRows} Channel Partner Incentives processed successfully`,
+      data: results
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Error processing Excel file',
+      error: error.message
+    });
+  } finally {
+    // Clean up uploaded file
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (cleanupError) {
+        console.error('Error cleaning up uploaded file:', cleanupError);
+      }
+    }
+  }
+};
+
+// @desc    Generate and download Channel Partner Incentives PDF
+// @route   GET /api/incentives/export-pdf
+// @access  Protected
+export const generateIncentivesPDF = async (req, res, next) => {
+  try {
+    const { search, cp_id, brand, incentive_type, status } = req.query;
+    
+    // Build filter
+    let filter = {};
+    if (cp_id) filter.CP_id = cp_id;
+    if (brand) filter.Brand = new RegExp(brand, 'i');
+    if (incentive_type) filter.Incentive_type = incentive_type;
+    if (status !== undefined) filter.status = status === 'true';
+    if (search) {
+      filter.$or = [
+        { Brand: new RegExp(search, 'i') },
+        { CP_id: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Get incentives from database
+    const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+    const incentives = await ChannelPartnerIncentive.find(filter)
+      .populate('channelPartner')
+      .sort({ CP_id: 1, Brand: 1 });
+
+    if (incentives.length === 0) {
+      return res.status(404).json({ message: 'No incentives found to export' });
+    }
+
+    // Dynamic import for jsPDF to handle ES modules
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
+    
+    // Import autoTable
+    await import('jspdf-autotable');
+
+    // Create PDF
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: 'a4'
+    });
+
+    // Add title
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('Channel Partner Incentives Report', 40, 40);
+
+    // Add generation date
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 60);
+    doc.text(`Total Records: ${incentives.length}`, 40, 75);
+
+    // Prepare table data
+    const tableColumns = [
+      'CP ID',
+      'CP Name', 
+      'Brand',
+      'Incentive Type',
+      'Incentive Factor',
+      'Status',
+      'Created Date'
+    ];
+
+    const tableRows = incentives.map(incentive => [
+      incentive.CP_id,
+      incentive.channelPartner?.CP_Name || 'N/A',
+      incentive.Brand,
+      incentive.Incentive_type,
+      incentive.Incentive_type === 'Percentage' ? `${incentive.Incentive_factor}%` : `₹${incentive.Incentive_factor}`,
+      incentive.status ? 'Active' : 'Inactive',
+      new Date(incentive.createdAt).toLocaleDateString()
+    ]);
+
+    // Add table
+    doc.autoTable({
+      head: [tableColumns],
+      body: tableRows,
+      startY: 90,
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      margin: { top: 90, left: 40, right: 40 },
+      columnStyles: {
+        0: { cellWidth: 60 },  // CP ID
+        1: { cellWidth: 100 }, // CP Name
+        2: { cellWidth: 80 },  // Brand  
+        3: { cellWidth: 80 },  // Incentive Type
+        4: { cellWidth: 70 },  // Incentive Factor
+        5: { cellWidth: 50 },  // Status
+        6: { cellWidth: 70 }   // Created Date
+      }
+    });
+
+    // Set response headers
+    const filename = `channel_partner_incentives_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Send PDF
+    const pdfBuffer = doc.output('arraybuffer');
+    res.send(Buffer.from(pdfBuffer));
+
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error generating PDF',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Change status (active/inactive) of a Channel Partner Incentive
 // @route   PATCH /api/incentives/:id/status
 // @access  Protected
 export const changeIncentiveStatus = async (req, res, next) => {
   try {
+    // Import models
+    const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+
     const { id } = req.params;
     const { status } = req.body;
     if (typeof status !== 'boolean') {
@@ -24,14 +303,16 @@ export const changeIncentiveStatus = async (req, res, next) => {
     next(error);
   }
 };
-import { ChannelPartner } from './channelPartner.model.js';
-import { ChannelPartnerIncentive } from './channelPartnerIncentive.model.js';
 
 // @desc    Create Channel Partner with Incentive (Combined)
 // @route   POST /api/incentives/create-with-partner
 // @access  Protected
 export const createChannelPartnerWithIncentive = async (req, res, next) => {
   try {
+    // Import models
+    const { ChannelPartner } = await import('./channelPartner.model.js');
+    const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+
     const { 
       // Channel Partner fields
       cp_name,
@@ -115,6 +396,10 @@ export const createChannelPartnerWithIncentive = async (req, res, next) => {
 // @access  Protected
 export const manageIncentives = async (req, res, next) => {
   try {
+    // Import models
+    const { ChannelPartner } = await import('./channelPartner.model.js');
+    const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+
     const { method } = req;
     const { id } = req.params;
 
@@ -288,6 +573,10 @@ export const manageIncentives = async (req, res, next) => {
 // @access  Protected
 export const getIncentivesByPartnerId = async (req, res, next) => {
   try {
+    // Import models
+    const { ChannelPartner } = await import('./channelPartner.model.js');
+    const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+
     const { cpId } = req.params;
     const { status } = req.query;
 
@@ -324,6 +613,10 @@ export const getIncentivesByPartnerId = async (req, res, next) => {
 // @access  Protected
 export const deleteIncentivesByPartnerId = async (req, res, next) => {
   try {
+    // Import models
+    const { ChannelPartner } = await import('./channelPartner.model.js');
+    const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
+
     const { cpId } = req.params;
 
     // Check if Channel Partner exists

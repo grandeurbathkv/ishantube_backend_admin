@@ -7,10 +7,17 @@ import {
   manageCities,
   manageStates,
   manageArchitectCategories,
-  getArchitectNames
+  getArchitectNames,
+  uploadArchitectsFromExcel,
+  generateArchitectsPDF
 } from './architect.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { uploadArchitectImage, processUploadedFile } from '../../middleware/upload.middleware.js';
+import { 
+  uploadArchitectImage, 
+  processUploadedFile, 
+  uploadExcelFile, 
+  handleUploadError 
+} from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
 
@@ -319,6 +326,124 @@ router.route('/states').post(protect, manageStates).get(protect, manageStates);
 router.route('/categories').post(protect, manageArchitectCategories).get(protect, manageArchitectCategories);
 
 router.route('/names').get(protect, getArchitectNames);
+
+/**
+ * @swagger
+ * /api/architect/upload-excel:
+ *   post:
+ *     summary: Upload Architects from Excel file
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx or .xls) containing Architect data. Expected columns - Arch_Name, Mobile Number, Email id, Arch_Address, Arch_city, Arch_state, Arch_type, Arch_category
+ *     responses:
+ *       200:
+ *         description: Excel file processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Excel upload completed. 15/20 Architects processed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalRows:
+ *                           type: number
+ *                         successful:
+ *                           type: number
+ *                         failed:
+ *                           type: number
+ *                         duplicates:
+ *                           type: number
+ *                     successful:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     failed:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     duplicates:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Invalid file format or validation error
+ *       401:
+ *         description: Not authorized
+ */
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadArchitectsFromExcel);
+
+/**
+ * @swagger
+ * /api/architect/export-pdf:
+ *   get:
+ *     summary: Generate and download Architects PDF report
+ *     tags: [Architect]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search filter to apply before generating PDF
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filter by city
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: Filter by state
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: Filter by architect type
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [A, B, C, D]
+ *         description: Filter by category
+ *     responses:
+ *       200:
+ *         description: PDF file generated and downloaded successfully
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No Architects found to export
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/export-pdf', protect, generateArchitectsPDF);
 
 // Main CRUD routes (with image upload for create/update)
 router.route('/').post(protect, uploadArchitectImage, processUploadedFile, manageArchitects).get(protect, manageArchitects);

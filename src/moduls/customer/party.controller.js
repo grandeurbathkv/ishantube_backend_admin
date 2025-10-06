@@ -1,5 +1,8 @@
 import { Party, PartyCity, PartyState } from './party.model.js';
 import mongoose from 'mongoose';
+import XLSX from 'xlsx';
+import path from 'path';
+import fs from 'fs';
 
 // ========== Main Party Management (Consolidated CRUD) ==========
 const manageParties = async (req, res) => {
@@ -587,10 +590,478 @@ const getAllPartiesDropdown = async (req, res) => {
   }
 };
 
+// @desc    Upload Parties from Excel file
+// @route   POST /api/party/upload-excel
+// @access  Protected
+const uploadPartiesFromExcel = async (req, res) => {
+  try {
+    console.log('Excel upload initiated for Parties...');
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is required'
+      });
+    }
+
+    const allowedExtensions = ['.xlsx', '.xls'];
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only .xlsx and .xls files are allowed'
+      });
+    }
+
+    console.log('Reading Excel file...');
+    
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    
+    if (!jsonData || jsonData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is empty or has no valid data'
+      });
+    }
+
+    console.log(`Found ${jsonData.length} rows in Excel file`);
+
+    const results = {
+      successful: [],
+      failed: [],
+      duplicates: [],
+      totalRows: jsonData.length
+    };
+
+    // Column mapping for flexibility
+    const columnMapping = {
+      'Party_Billing_Name': ['Party_Billing_Name', 'Billing Name', 'Name', 'Party Name'],
+      'Contact_Person': ['Contact_Person', 'Contact Person', 'Contact', 'Person'],
+      'Mobile_Number': ['Mobile_Number', 'Mobile Number', 'Mobile', 'Phone'],
+      'Email_id': ['Email_id', 'Email', 'Email ID', 'Email Address'],
+      'Party_Address': ['Party_Address', 'Address', 'Party Address'],
+      'Party_city': ['Party_city', 'City', 'Party City'],
+      'Party_State': ['Party_State', 'State', 'Party State'],
+      'Party_Gstno': ['Party_Gstno', 'GST Number', 'GST No', 'GSTIN'],
+      'Other_Numbers': ['Other_Numbers', 'Other Numbers', 'Additional Numbers'],
+      'Party_default_User_id': ['Party_default_User_id', 'User ID', 'Default User'],
+      'Party_default_cp_id': ['Party_default_cp_id', 'CP ID', 'Channel Partner ID'],
+      'Party_default_Arch_id': ['Party_default_Arch_id', 'Arch ID', 'Architect ID']
+    };
+
+    const findColumnValue = (row, fieldName) => {
+      const possibleColumns = columnMapping[fieldName] || [fieldName];
+      for (const col of possibleColumns) {
+        if (row[col] !== undefined && row[col] !== null && row[col] !== '') {
+          return row[col];
+        }
+      }
+      return null;
+    };
+
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      const rowNumber = i + 2;
+
+      try {
+        const Party_Billing_Name = findColumnValue(row, 'Party_Billing_Name');
+        const Contact_Person = findColumnValue(row, 'Contact_Person');
+        const Mobile_Number = findColumnValue(row, 'Mobile_Number');
+        const Email_id = findColumnValue(row, 'Email_id');
+        const Party_Address = findColumnValue(row, 'Party_Address');
+        const Party_city = findColumnValue(row, 'Party_city');
+        const Party_State = findColumnValue(row, 'Party_State');
+        const Party_Gstno = findColumnValue(row, 'Party_Gstno');
+        const Other_Numbers = findColumnValue(row, 'Other_Numbers');
+        const Party_default_User_id = findColumnValue(row, 'Party_default_User_id');
+        const Party_default_cp_id = findColumnValue(row, 'Party_default_cp_id');
+        const Party_default_Arch_id = findColumnValue(row, 'Party_default_Arch_id');
+
+        // Validate required fields
+        if (!Party_Billing_Name || !Party_Billing_Name.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_Billing_Name is required'
+          });
+          continue;
+        }
+
+        if (!Contact_Person || !Contact_Person.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Contact_Person is required'
+          });
+          continue;
+        }
+
+        if (!Mobile_Number || !Mobile_Number.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Mobile_Number is required'
+          });
+          continue;
+        }
+
+        if (!Party_Address || !Party_Address.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_Address is required'
+          });
+          continue;
+        }
+
+        if (!Party_city || !Party_city.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_city is required'
+          });
+          continue;
+        }
+
+        if (!Party_State || !Party_State.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_State is required'
+          });
+          continue;
+        }
+
+        if (!Party_default_User_id || !Party_default_User_id.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_default_User_id is required'
+          });
+          continue;
+        }
+
+        if (!Party_default_cp_id || !Party_default_cp_id.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_default_cp_id is required'
+          });
+          continue;
+        }
+
+        if (!Party_default_Arch_id || !Party_default_Arch_id.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Party_default_Arch_id is required'
+          });
+          continue;
+        }
+
+        // Validate mobile number format
+        const cleanMobile = Mobile_Number.toString().trim();
+        if (!/^\d{10}$/.test(cleanMobile)) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Mobile Number must be 10 digits'
+          });
+          continue;
+        }
+
+        // Check for duplicates
+        const existingParty = await Party.findOne({
+          $or: [
+            { Party_Billing_Name: Party_Billing_Name.toString().trim() },
+            { Mobile_Number: cleanMobile }
+          ]
+        });
+
+        if (existingParty) {
+          results.duplicates.push({
+            row: rowNumber,
+            data: row,
+            existing: existingParty,
+            error: 'Party with this name or mobile number already exists'
+          });
+          continue;
+        }
+
+        // Auto-create city and state if they don't exist
+        const cityName = Party_city.toString().trim();
+        const stateName = Party_State.toString().trim();
+        
+        let existingCity = await PartyCity.findOne({ name: cityName });
+        if (!existingCity) {
+          existingCity = await PartyCity.create({
+            name: cityName,
+            state: stateName,
+            created_by: req.user._id
+          });
+        }
+
+        let existingState = await PartyState.findOne({ name: stateName });
+        if (!existingState) {
+          existingState = await PartyState.create({
+            name: stateName,
+            created_by: req.user._id
+          });
+        }
+
+        // Prepare data for creation
+        const partyData = {
+          Party_Billing_Name: Party_Billing_Name.toString().trim(),
+          Contact_Person: Contact_Person.toString().trim(),
+          Mobile_Number: cleanMobile,
+          Party_Address: Party_Address.toString().trim(),
+          Party_city: cityName,
+          Party_State: stateName,
+          Party_default_User_id: Party_default_User_id.toString().trim(),
+          Party_default_cp_id: Party_default_cp_id.toString().trim(),
+          Party_default_Arch_id: Party_default_Arch_id.toString().trim(),
+          created_by: req.user._id
+        };
+
+        // Add optional fields
+        if (Email_id && Email_id.toString().trim()) {
+          const emailStr = Email_id.toString().trim().toLowerCase();
+          if (/.+@.+\..+/.test(emailStr)) {
+            partyData.Email_id = emailStr;
+          }
+        }
+
+        if (Party_Gstno && Party_Gstno.toString().trim()) {
+          partyData.Party_Gstno = Party_Gstno.toString().trim();
+        }
+
+        if (Other_Numbers && Other_Numbers.toString().trim()) {
+          partyData.Other_Numbers = Other_Numbers.toString().trim();
+        }
+
+        // Create Party
+        const newParty = await Party.create(partyData);
+        
+        results.successful.push({
+          row: rowNumber,
+          data: newParty
+        });
+
+        console.log(`Row ${rowNumber}: Successfully created Party ${newParty.Party_id}`);
+
+      } catch (error) {
+        console.error(`Row ${rowNumber} error:`, error.message);
+        results.failed.push({
+          row: rowNumber,
+          data: row,
+          error: error.message
+        });
+      }
+    }
+
+    // Clean up uploaded file
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (cleanupError) {
+      console.warn('Could not delete uploaded file:', cleanupError.message);
+    }
+
+    console.log('Excel upload completed for Parties:', {
+      total: results.totalRows,
+      successful: results.successful.length,
+      failed: results.failed.length,
+      duplicates: results.duplicates.length
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Excel upload completed. ${results.successful.length}/${results.totalRows} Parties processed successfully`,
+      data: {
+        summary: {
+          totalRows: results.totalRows,
+          successful: results.successful.length,
+          failed: results.failed.length,
+          duplicates: results.duplicates.length
+        },
+        successful: results.successful,
+        failed: results.failed,
+        duplicates: results.duplicates
+      }
+    });
+
+  } catch (error) {
+    console.error('Excel upload error for Parties:', error);
+    
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.warn('Could not delete uploaded file after error:', cleanupError.message);
+      }
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Generate and download Parties PDF
+// @route   GET /api/party/export-pdf
+// @access  Protected
+const generatePartiesPDF = async (req, res) => {
+  try {
+    console.log('PDF generation initiated for Parties...');
+    
+    // Dynamic import of jsPDF
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
+    await import('jspdf-autotable');
+    
+    // Get query parameters for filtering
+    const { search, city, state } = req.query;
+    let filter = {};
+
+    // Apply filters
+    if (city) filter.Party_city = new RegExp(city, 'i');
+    if (state) filter.Party_State = new RegExp(state, 'i');
+    if (search) {
+      filter.$or = [
+        { Party_id: new RegExp(search, 'i') },
+        { Party_Billing_Name: new RegExp(search, 'i') },
+        { Contact_Person: new RegExp(search, 'i') },
+        { Email_id: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Fetch parties data
+    const parties = await Party.find(filter).sort({ Party_Billing_Name: 1 });
+
+    console.log(`Found ${parties.length} parties for PDF generation`);
+
+    // Create PDF regardless of data presence
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: 'a4'
+    });
+
+    // Add title
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('Parties Report', 40, 40);
+
+    // Add generation date and record count
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 40, 60);
+    doc.text(`Total Records: ${parties.length}`, 40, 75);
+
+    // Add filter information if any
+    if (Object.keys(filter).length > 0) {
+      let filterText = 'Filters: ';
+      if (search) filterText += `Search: "${search}" `;
+      if (city) filterText += `City: "${city}" `;
+      if (state) filterText += `State: "${state}" `;
+      doc.text(filterText, 40, 90);
+    }
+
+    if (parties.length === 0) {
+      // Add "No data found" message
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text('No parties found matching the criteria', 40, 130);
+    } else {
+      // Prepare table data
+      const tableColumns = [
+        'S.No.',
+        'Party ID',
+        'Billing Name',
+        'Contact Person',
+        'Mobile',
+        'Email',
+        'City',
+        'State',
+        'GST No'
+      ];
+
+      const tableRows = parties.map((party, index) => [
+        (index + 1).toString(),
+        party.Party_id || '-',
+        party.Party_Billing_Name || '-',
+        party.Contact_Person || '-',
+        party.Mobile_Number || '-',
+        party.Email_id || '-',
+        party.Party_city || '-',
+        party.Party_State || '-',
+        party.Party_Gstno || '-'
+      ]);
+
+      // Add table to PDF
+      doc.autoTable({
+        head: [tableColumns],
+        body: tableRows,
+        startY: Object.keys(filter).length > 0 ? 110 : 95,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        margin: { top: 90, left: 20, right: 20 },
+        columnStyles: {
+          0: { cellWidth: 40 },  // S.No.
+          1: { cellWidth: 60 },  // Party ID
+          2: { cellWidth: 100 }, // Billing Name
+          3: { cellWidth: 80 },  // Contact Person
+          4: { cellWidth: 70 },  // Mobile
+          5: { cellWidth: 90 },  // Email
+          6: { cellWidth: 70 },  // City
+          7: { cellWidth: 70 },  // State
+          8: { cellWidth: 80 }   // GST No
+        }
+      });
+    }
+
+    // Set response headers
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `parties_report_${timestamp}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Send PDF
+    const pdfBuffer = doc.output('arraybuffer');
+    res.send(Buffer.from(pdfBuffer));
+
+    console.log('PDF generated and sent successfully');
+
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error generating PDF',
+      error: error.message
+    });
+  }
+};
 
 export {
   manageParties,
   manageDropdownData,
   getPartyAnalytics,
-  getAllPartiesDropdown
+  getAllPartiesDropdown,
+  uploadPartiesFromExcel,
+  generatePartiesPDF
 };
