@@ -3,9 +3,15 @@ import {
   manageParties,
   manageDropdownData,
   getPartyAnalytics,
-  getAllPartiesDropdown
+  getAllPartiesDropdown,
+  uploadPartiesFromExcel,
+  generatePartiesPDF
 } from './party.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
+import { 
+  uploadExcelFile, 
+  handleUploadError 
+} from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
 
@@ -311,6 +317,113 @@ const router = express.Router();
 // Main CRUD routes
 router.route('/').post(protect, manageParties).get(protect, manageParties);
 router.route('/:id').get(protect, manageParties).put(protect, manageParties).delete(protect, manageParties);
+
+/**
+ * @swagger
+ * /api/party/upload-excel:
+ *   post:
+ *     summary: Upload Parties from Excel file
+ *     tags: [Party]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx or .xls) containing Party data. Expected columns - Party_Billing_Name, Contact_Person, Mobile_Number, Email_id, Party_Address, Party_city, Party_State, Party_Gstno, Other_Numbers, Party_default_User_id, Party_default_cp_id, Party_default_Arch_id
+ *     responses:
+ *       200:
+ *         description: Excel file processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Excel upload completed. 15/20 Parties processed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalRows:
+ *                           type: number
+ *                         successful:
+ *                           type: number
+ *                         failed:
+ *                           type: number
+ *                         duplicates:
+ *                           type: number
+ *                     successful:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     failed:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     duplicates:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Invalid file format or validation error
+ *       401:
+ *         description: Not authorized
+ */
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadPartiesFromExcel);
+
+/**
+ * @swagger
+ * /api/party/export-pdf:
+ *   get:
+ *     summary: Generate and download Parties PDF report
+ *     tags: [Party]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search filter to apply before generating PDF
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filter by city
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: Filter by state
+ *     responses:
+ *       200:
+ *         description: PDF file generated and downloaded successfully
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No Parties found to export
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/export-pdf', protect, generatePartiesPDF);
 
 // ========== Dropdown Management Routes ==========
 

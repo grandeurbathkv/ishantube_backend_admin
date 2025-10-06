@@ -1,4 +1,7 @@
 import { Architect, ArchType, City, State } from './architect.model.js';
+import XLSX from 'xlsx';
+import path from 'path';
+import fs from 'fs';
 
 // Helper function to auto-create dropdown values
 const autoCreateDropdownValues = async (Arch_type, Arch_city, Arch_state, state_code) => {
@@ -563,6 +566,463 @@ export const getArchitectNames = async (req, res, next) => {
       data: namesList,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Upload Architects from Excel file
+// @route   POST /api/architect/upload-excel
+// @access  Protected
+export const uploadArchitectsFromExcel = async (req, res, next) => {
+  try {
+    console.log('Excel upload initiated for Architects...');
+    
+    // Check if file is uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is required'
+      });
+    }
+
+    // Validate file type
+    const allowedExtensions = ['.xlsx', '.xls'];
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only .xlsx and .xls files are allowed'
+      });
+    }
+
+    console.log('Reading Excel file...');
+    
+    // Read Excel file
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert to JSON
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    
+    if (!jsonData || jsonData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is empty or has no valid data'
+      });
+    }
+
+    console.log(`Found ${jsonData.length} rows in Excel file`);
+
+    // Results tracking
+    const results = {
+      successful: [],
+      failed: [],
+      duplicates: [],
+      totalRows: jsonData.length
+    };
+
+    // Column mapping for flexibility
+    const columnMapping = {
+      'Arch_Name': ['Arch_Name', 'Architect Name', 'Name', 'Architect'],
+      'Mobile Number': ['Mobile Number', 'Mobile', 'Phone', 'Contact Number'],
+      'Email id': ['Email id', 'Email', 'Email ID', 'Email Address'],
+      'Arch_Address': ['Arch_Address', 'Address', 'Architect Address'],
+      'Arch_city': ['Arch_city', 'City', 'Architect City'],
+      'Arch_state': ['Arch_state', 'State', 'Architect State'],
+      'Arch_type': ['Arch_type', 'Type', 'Architect Type'],
+      'Arch_category': ['Arch_category', 'Category', 'Architect Category']
+    };
+
+    // Helper function to find column value
+    const findColumnValue = (row, fieldName) => {
+      const possibleColumns = columnMapping[fieldName] || [fieldName];
+      for (const col of possibleColumns) {
+        if (row[col] !== undefined && row[col] !== null && row[col] !== '') {
+          return row[col];
+        }
+      }
+      return null;
+    };
+
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      const rowNumber = i + 2;
+
+      try {
+        // Extract data from row
+        const Arch_Name = findColumnValue(row, 'Arch_Name');
+        const mobileNumber = findColumnValue(row, 'Mobile Number');
+        const email = findColumnValue(row, 'Email id');
+        const address = findColumnValue(row, 'Arch_Address');
+        const city = findColumnValue(row, 'Arch_city');
+        const state = findColumnValue(row, 'Arch_state');
+        const type = findColumnValue(row, 'Arch_type');
+        const category = findColumnValue(row, 'Arch_category');
+
+        // Validate required fields
+        if (!Arch_Name || !Arch_Name.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Arch_Name is required'
+          });
+          continue;
+        }
+
+        if (!address || !address.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Arch_Address is required'
+          });
+          continue;
+        }
+
+        if (!city || !city.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Arch_city is required'
+          });
+          continue;
+        }
+
+        if (!state || !state.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Arch_state is required'
+          });
+          continue;
+        }
+
+        if (!category || !category.toString().trim()) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Arch_category is required'
+          });
+          continue;
+        }
+
+        // Validate mobile number format if provided
+        let cleanMobile = null;
+        if (mobileNumber && mobileNumber.toString().trim()) {
+          cleanMobile = mobileNumber.toString().trim();
+          if (!/^\d{10}$/.test(cleanMobile)) {
+            results.failed.push({
+              row: rowNumber,
+              data: row,
+              error: 'Mobile Number must be 10 digits'
+            });
+            continue;
+          }
+        }
+
+        // Validate category
+        if (!['A', 'B', 'C', 'D'].includes(category.toString().trim().toUpperCase())) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Arch_category must be A, B, C, or D'
+          });
+          continue;
+        }
+
+        // Check for duplicates
+        const existingArchitect = await Architect.findOne({
+          $or: [
+            { Arch_Name: Arch_Name.toString().trim() },
+            ...(cleanMobile ? [{ 'Mobile Number': cleanMobile }] : [])
+          ]
+        });
+
+        if (existingArchitect) {
+          results.duplicates.push({
+            row: rowNumber,
+            data: row,
+            existing: existingArchitect,
+            error: 'Architect with this name or mobile number already exists'
+          });
+          continue;
+        }
+
+        // Auto-create dropdown values
+        await autoCreateDropdownValues(
+          type ? type.toString().trim() : null,
+          city.toString().trim(),
+          state.toString().trim(),
+          null
+        );
+
+        // Auto-generate Arch_id
+        const lastArchitect = await Architect.findOne({}, {}, { sort: { Arch_id: -1 } });
+        let nextIdNum = 1;
+        if (lastArchitect && lastArchitect.Arch_id) {
+          const match = lastArchitect.Arch_id.match(/ARCH(\d+)/);
+          if (match) {
+            nextIdNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        const Arch_id = `ARCH${String(nextIdNum).padStart(3, '0')}`;
+
+        // Prepare data for creation
+        const architectData = {
+          Arch_id,
+          Arch_Name: Arch_Name.toString().trim(),
+          Arch_Address: address.toString().trim(),
+          Arch_city: city.toString().trim(),
+          Arch_state: state.toString().trim(),
+          Arch_category: category.toString().trim().toUpperCase()
+        };
+
+        // Add optional fields
+        if (cleanMobile) {
+          architectData['Mobile Number'] = cleanMobile;
+        }
+
+        if (email && email.toString().trim()) {
+          const emailStr = email.toString().trim().toLowerCase();
+          if (/.+@.+\..+/.test(emailStr)) {
+            architectData['Email id'] = emailStr;
+          }
+        }
+
+        if (type && type.toString().trim()) {
+          architectData.Arch_type = type.toString().trim();
+        }
+
+        // Create Architect
+        const newArchitect = await Architect.create(architectData);
+        
+        results.successful.push({
+          row: rowNumber,
+          data: newArchitect
+        });
+
+        console.log(`Row ${rowNumber}: Successfully created Architect ${newArchitect.Arch_id}`);
+
+      } catch (error) {
+        console.error(`Row ${rowNumber} error:`, error.message);
+        results.failed.push({
+          row: rowNumber,
+          data: row,
+          error: error.message
+        });
+      }
+    }
+
+    // Clean up uploaded file
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (cleanupError) {
+      console.warn('Could not delete uploaded file:', cleanupError.message);
+    }
+
+    console.log('Excel upload completed for Architects:', {
+      total: results.totalRows,
+      successful: results.successful.length,
+      failed: results.failed.length,
+      duplicates: results.duplicates.length
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Excel upload completed. ${results.successful.length}/${results.totalRows} Architects processed successfully`,
+      data: {
+        summary: {
+          totalRows: results.totalRows,
+          successful: results.successful.length,
+          failed: results.failed.length,
+          duplicates: results.duplicates.length
+        },
+        successful: results.successful,
+        failed: results.failed,
+        duplicates: results.duplicates
+      }
+    });
+
+  } catch (error) {
+    console.error('Excel upload error for Architects:', error);
+    
+    // Clean up uploaded file in case of error
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.warn('Could not delete uploaded file after error:', cleanupError.message);
+      }
+    }
+    
+    next(error);
+  }
+};
+
+// @desc    Generate and download Architects PDF
+// @route   GET /api/architect/export-pdf
+// @access  Protected
+export const generateArchitectsPDF = async (req, res, next) => {
+  try {
+    console.log('PDF generation initiated for Architects...');
+    
+    // Dynamic import of jsPDF
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
+    await import('jspdf-autotable');
+    
+    // Get query parameters for filtering
+    const { search, city, state, type, category } = req.query;
+    let filter = {};
+
+    // Apply filters
+    if (city) filter.Arch_city = new RegExp(city, 'i');
+    if (state) filter.Arch_state = new RegExp(state, 'i');
+    if (type) filter.Arch_type = new RegExp(type, 'i');
+    if (category) filter.Arch_category = category;
+    if (search) {
+      filter.$or = [
+        { Arch_Name: new RegExp(search, 'i') },
+        { Arch_id: new RegExp(search, 'i') },
+        { 'Email id': new RegExp(search, 'i') },
+        { Arch_Address: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Fetch architects data
+    const architects = await Architect.find(filter).sort({ Arch_Name: 1 });
+
+    if (!architects || architects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No Architects found to export'
+      });
+    }
+
+    console.log(`Generating PDF for ${architects.length} Architects`);
+
+    // Create new PDF document
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Add title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 116, 166);
+    doc.text('Architects Report', 14, 20);
+
+    // Add generation info
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    const currentDate = new Date().toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Generated on: ${currentDate}`, 14, 28);
+    
+    let yPosition = 33;
+    if (Object.keys(filter).length > 0) {
+      doc.text(`Filters applied: ${JSON.stringify(filter)}`, 14, yPosition);
+      yPosition += 5;
+    }
+    
+    doc.text(`Total Records: ${architects.length}`, 14, yPosition);
+
+    // Prepare table data
+    const tableColumns = [
+      'S.No.',
+      'Arch ID',
+      'Name',
+      'Mobile',
+      'Email',
+      'Type',
+      'Category',
+      'City',
+      'State'
+    ];
+
+    const tableRows = architects.map((architect, index) => [
+      (index + 1).toString(),
+      architect.Arch_id || '-',
+      architect.Arch_Name || '-',
+      architect['Mobile Number'] || '-',
+      architect['Email id'] || '-',
+      architect.Arch_type || '-',
+      architect.Arch_category || '-',
+      architect.Arch_city || '-',
+      architect.Arch_state || '-'
+    ]);
+
+    // Add table to PDF
+    doc.autoTable({
+      head: [tableColumns],
+      body: tableRows,
+      startY: yPosition + 10,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [40, 116, 166],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        textColor: 50
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      columnStyles: {
+        0: { cellWidth: 15, halign: 'center' },
+        1: { cellWidth: 25, halign: 'center' },
+        2: { cellWidth: 45, halign: 'left' },
+        3: { cellWidth: 25, halign: 'center' },
+        4: { cellWidth: 45, halign: 'left' },
+        5: { cellWidth: 30, halign: 'left' },
+        6: { cellWidth: 20, halign: 'center' },
+        7: { cellWidth: 30, halign: 'left' },
+        8: { cellWidth: 30, halign: 'left' }
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 2
+      },
+      margin: { top: 10, left: 14, right: 14 }
+    });
+
+    // Add footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(
+        `Page ${i} of ${pageCount} | Generated by IshanthTube Admin System`,
+        14,
+        doc.internal.pageSize.height - 10
+      );
+    }
+
+    // Generate filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+    const filename = `architects-${timestamp}.pdf`;
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Send PDF
+    const pdfOutput = doc.output();
+    res.send(Buffer.from(pdfOutput, 'binary'));
+
+    console.log(`PDF generated successfully: ${filename}`);
+
+  } catch (error) {
+    console.error('PDF generation error for Architects:', error);
     next(error);
   }
 };

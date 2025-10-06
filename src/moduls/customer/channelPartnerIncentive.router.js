@@ -6,12 +6,15 @@ import {
   deleteIncentivesByPartnerId,
   createChannelPartnerWithIncentive,
   changeIncentiveStatus,
+  uploadIncentivesFromExcel,
+  generateIncentivesPDF
 } from './channelPartnerIncentive.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { 
   uploadIncentiveImage, 
   handleUploadError, 
-  processUploadedFile 
+  processUploadedFile,
+  uploadExcelFile
 } from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
@@ -623,6 +626,124 @@ const router = express.Router();
 
 // Combined route to create Channel Partner with Incentive
 router.route('/create-with-partner').post(protect, uploadIncentiveImage, handleUploadError, processUploadedFile, createChannelPartnerWithIncentive);
+
+/**
+ * @swagger
+ * /api/incentives/upload-excel:
+ *   post:
+ *     summary: Upload Channel Partner Incentives from Excel file
+ *     tags: [Channel Partner Incentives]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx or .xls) containing Channel Partner Incentive data. Expected columns - CP_id, Brand, Incentive_type (Percentage/Amount), Incentive_factor, status
+ *     responses:
+ *       200:
+ *         description: Excel file processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Excel upload completed. 15/20 Channel Partner Incentives processed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalRows:
+ *                           type: number
+ *                         successful:
+ *                           type: number
+ *                         failed:
+ *                           type: number
+ *                         duplicates:
+ *                           type: number
+ *                     successful:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     failed:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     duplicates:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Invalid file format or validation error
+ *       401:
+ *         description: Not authorized
+ */
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadIncentivesFromExcel);
+
+/**
+ * @swagger
+ * /api/incentives/export-pdf:
+ *   get:
+ *     summary: Generate and download Channel Partner Incentives PDF report
+ *     tags: [Channel Partner Incentives]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search filter to apply before generating PDF
+ *       - in: query
+ *         name: cp_id
+ *         schema:
+ *           type: string
+ *         description: Filter by Channel Partner ID
+ *       - in: query
+ *         name: brand
+ *         schema:
+ *           type: string
+ *         description: Filter by brand name
+ *       - in: query
+ *         name: incentive_type
+ *         schema:
+ *           type: string
+ *           enum: [Percentage, Amount]
+ *         description: Filter by incentive type
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: boolean
+ *         description: Filter by status (true for active, false for inactive)
+ *     responses:
+ *       200:
+ *         description: PDF file generated and downloaded successfully
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No Channel Partner Incentives found to export
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/export-pdf', protect, generateIncentivesPDF);
 
 // Main CRUD routes for incentives
 router.route('/').post(protect, uploadIncentiveImage, handleUploadError, processUploadedFile, manageIncentives).get(protect, manageIncentives);

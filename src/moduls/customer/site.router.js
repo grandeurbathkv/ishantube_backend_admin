@@ -3,9 +3,15 @@ import {
   manageSites,
   manageSiteDropdownData,
   getSitesByParty,
-  getSiteAnalytics
+  getSiteAnalytics,
+  uploadSitesFromExcel,
+  generateSitesPDF
 } from './site.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
+import { 
+  uploadExcelFile, 
+  handleUploadError 
+} from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
 
@@ -325,6 +331,118 @@ const router = express.Router();
 // Main CRUD routes
 router.route('/').post(protect, manageSites).get(protect, manageSites);
 router.route('/:id').get(protect, manageSites).put(protect, manageSites).delete(protect, manageSites);
+
+/**
+ * @swagger
+ * /api/site/upload-excel:
+ *   post:
+ *     summary: Upload Sites from Excel file
+ *     tags: [Site]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx or .xls) containing Site data. Expected columns - Site_Billing_Name, Contact_Person, Mobile_Number, Email_id, Site_Address, Site_city, Site_State, Site_Gstno, Site_Supervisor_name, Site_Supervisor_Number, Other_Numbers, Site_party_id, Site_User_id, Site_cp_id
+ *     responses:
+ *       200:
+ *         description: Excel file processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Excel upload completed. 15/20 Sites processed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalRows:
+ *                           type: number
+ *                         successful:
+ *                           type: number
+ *                         failed:
+ *                           type: number
+ *                         duplicates:
+ *                           type: number
+ *                     successful:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     failed:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     duplicates:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Invalid file format or validation error
+ *       401:
+ *         description: Not authorized
+ */
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadSitesFromExcel);
+
+/**
+ * @swagger
+ * /api/site/export-pdf:
+ *   get:
+ *     summary: Generate and download Sites PDF report
+ *     tags: [Site]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search filter to apply before generating PDF
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filter by city
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *         description: Filter by state
+ *       - in: query
+ *         name: party_id
+ *         schema:
+ *           type: string
+ *         description: Filter by party ID
+ *     responses:
+ *       200:
+ *         description: PDF file generated and downloaded successfully
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: No Sites found to export
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/export-pdf', protect, generateSitesPDF);
 
 // ========== Party Relationship Routes ==========
 
