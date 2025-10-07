@@ -992,7 +992,10 @@ const uploadSitesFromExcel = async (req, res) => {
 // @access  Protected
 const generateSitesPDF = async (req, res) => {
   try {
-    console.log('PDF generation initiated for Sites...');
+    console.log('🔥🔥🔥 PDF FUNCTION CALLED FOR SITES 🔥🔥🔥');
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+    console.log('Query params:', req.query);
     
     // Dynamic import of jsPDF
     const jsPDFModule = await import('jspdf');

@@ -1,4 +1,5 @@
 import { Party, PartyCity, PartyState } from './party.model.js';
+import { Site } from './site.model.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 import path from 'path';
@@ -91,10 +92,22 @@ const manageParties = async (req, res) => {
             });
           }
 
+          // Get associated sites for this party
+          const partySites = await Site.find({ Site_party_id: id })
+            .select('Site_id Site_Billing_Name Contact_Person Mobile_Number Site_Address Site_city Site_State')
+            .sort({ createdAt: -1 });
+
+          // Add sites to party data
+          const partyWithSites = {
+            ...party.toObject(),
+            sites: partySites,
+            sitesCount: partySites.length
+          };
+
           return res.status(200).json({
             success: true,
-            message: 'Party retrieved successfully',
-            data: party
+            message: 'Party retrieved successfully with sites',
+            data: partyWithSites
           });
         } else {
           // Get all Parties with filters and search
@@ -106,6 +119,7 @@ const manageParties = async (req, res) => {
             cp_id,
             arch_id,
             include_details,
+            include_sites,
             page = 1,
             limit = 10
           } = req.query;
@@ -167,10 +181,37 @@ const manageParties = async (req, res) => {
           const parties = await query;
           const total = await Party.countDocuments(filter);
 
+          let partiesWithSites = parties;
+
+          // Include sites data if requested
+          if (include_sites === 'true') {
+            partiesWithSites = await Promise.all(parties.map(async (party) => {
+              const partySites = await Site.find({ Site_party_id: party.Party_id })
+                .select('Site_id Site_Billing_Name Contact_Person Mobile_Number Site_Address Site_city Site_State')
+                .sort({ createdAt: -1 });
+              
+              return {
+                ...party.toObject(),
+                sites: partySites,
+                sitesCount: partySites.length
+              };
+            }));
+          } else {
+            // Just add site count for each party
+            partiesWithSites = await Promise.all(parties.map(async (party) => {
+              const siteCount = await Site.countDocuments({ Site_party_id: party.Party_id });
+              
+              return {
+                ...party.toObject(),
+                sitesCount: siteCount
+              };
+            }));
+          }
+
           return res.status(200).json({
             success: true,
             message: 'Parties retrieved successfully',
-            count: parties.length,
+            count: partiesWithSites.length,
             total,
             page: parseInt(page),
             totalPages: Math.ceil(total / parseInt(limit)),
@@ -181,9 +222,10 @@ const manageParties = async (req, res) => {
               user_id,
               cp_id,
               arch_id,
-              include_details
+              include_details,
+              include_sites
             },
-            data: parties
+            data: partiesWithSites
           });
         }
 
@@ -917,7 +959,10 @@ const uploadPartiesFromExcel = async (req, res) => {
 // @access  Protected
 const generatePartiesPDF = async (req, res) => {
   try {
-    console.log('PDF generation initiated for Parties...');
+    console.log('🔥🔥🔥 PDF FUNCTION CALLED FOR PARTIES 🔥🔥🔥');
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+    console.log('Query params:', req.query);
     
     // Dynamic import of jsPDF
     const jsPDFModule = await import('jspdf');

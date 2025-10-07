@@ -185,6 +185,11 @@ const router = express.Router();
  *           type: boolean
  *         description: Include related entity details (user, CP, architect)
  *       - in: query
+ *         name: include_sites
+ *         schema:
+ *           type: boolean
+ *         description: Include sites data for each party (true for full sites data, false for only site count)
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
@@ -314,10 +319,6 @@ const router = express.Router();
  *         description: Not authorized
  */
 
-// Main CRUD routes
-router.route('/').post(protect, manageParties).get(protect, manageParties);
-router.route('/:id').get(protect, manageParties).put(protect, manageParties).delete(protect, manageParties);
-
 /**
  * @swagger
  * /api/party/upload-excel:
@@ -424,6 +425,10 @@ router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, upload
  *         description: Not authorized
  */
 router.get('/export-pdf', protect, generatePartiesPDF);
+
+// Main CRUD routes
+router.route('/').post(protect, manageParties).get(protect, manageParties);
+router.route('/:id').get(protect, manageParties).put(protect, manageParties).delete(protect, manageParties);
 
 // ========== Dropdown Management Routes ==========
 
