@@ -90,8 +90,18 @@ router.get('/dropdown', protect, getUserDropdown);
  *           example: "password123"
  *         Role:
  *           type: string
- *           enum: [Admin, Manager, Staff]
- *           description: User role
+ *           enum: [Super Admin, Admin, Marketing, Dispatch head, Store Head, Transport Manager, Accountant, Document Manager, Guest]
+ *           description: |
+ *             User role with complete options:
+ *             - **Super Admin**: Full system access and management
+ *             - **Admin**: Administrative privileges
+ *             - **Marketing**: Marketing department access
+ *             - **Dispatch head**: Dispatch and shipping management
+ *             - **Store Head**: Inventory and store management
+ *             - **Transport Manager**: Transportation operations
+ *             - **Accountant**: Financial and accounting operations
+ *             - **Document Manager**: Document handling and management
+ *             - **Guest**: Limited read-only access
  *           example: "Admin"
  *         Image:
  *           type: string
@@ -100,7 +110,9 @@ router.get('/dropdown', protect, getUserDropdown);
  *         isSuperAdmin:
  *           type: boolean
  *           default: false
- *           description: Super admin privileges
+ *           description: |
+ *             Super admin privileges (automatically set based on Role).
+ *             True if Role is "Super Admin", false otherwise.
  *           example: false
  *         status:
  *           type: boolean
@@ -161,8 +173,18 @@ router.get('/dropdown', protect, getUserDropdown);
  *                 example: "password123"
  *               Role:
  *                 type: string
- *                 enum: [Admin, Manager, Staff]
- *                 description: User role
+ *                 enum: [Super Admin, Admin, Marketing, Dispatch head, Store Head, Transport Manager, Accountant, Document Manager, Guest]
+ *                 description: |
+ *                   Select user role from available options:
+ *                   - **Super Admin**: Full system access and management
+ *                   - **Admin**: Administrative privileges
+ *                   - **Marketing**: Marketing department access and campaigns
+ *                   - **Dispatch head**: Dispatch and shipping management
+ *                   - **Store Head**: Inventory and store management
+ *                   - **Transport Manager**: Transportation and logistics operations
+ *                   - **Accountant**: Financial and accounting operations
+ *                   - **Document Manager**: Document handling and file management
+ *                   - **Guest**: Limited read-only access for visitors
  *                 example: "Admin"
  *               Image:
  *                 type: string
@@ -171,8 +193,51 @@ router.get('/dropdown', protect, getUserDropdown);
  *               isSuperAdmin:
  *                 type: boolean
  *                 default: false
- *                 description: Super admin privileges
+ *                 description: |
+ *                   Super admin privileges (automatically set to true if Role is "Super Admin").
+ *                   This field is auto-managed and will be overridden based on Role selection.
  *                 example: false
+ *           examples:
+ *             super_admin:
+ *               summary: Create Super Admin User
+ *               value:
+ *                 Mobile Number: "9876543210"
+ *                 Email id: "superadmin@company.com"
+ *                 User Name: "Super Administrator"
+ *                 Password: "superadmin123"
+ *                 Role: "Super Admin"
+ *             admin_user:
+ *               summary: Create Admin User
+ *               value:
+ *                 Mobile Number: "9876543211"
+ *                 Email id: "admin@company.com"
+ *                 User Name: "System Administrator"
+ *                 Password: "admin123"
+ *                 Role: "Admin"
+ *             marketing_user:
+ *               summary: Create Marketing User
+ *               value:
+ *                 Mobile Number: "9876543212"
+ *                 Email id: "marketing@company.com"
+ *                 User Name: "Marketing Manager"
+ *                 Password: "marketing123"
+ *                 Role: "Marketing"
+ *             store_head:
+ *               summary: Create Store Head User
+ *               value:
+ *                 Mobile Number: "9876543213"
+ *                 Email id: "storehead@company.com"
+ *                 User Name: "Store Manager"
+ *                 Password: "store123"
+ *                 Role: "Store Head"
+ *             guest_user:
+ *               summary: Create Guest User
+ *               value:
+ *                 Mobile Number: "9876543214"
+ *                 Email id: "guest@company.com"
+ *                 User Name: "Guest User"
+ *                 Password: "guest123"
+ *                 Role: "Guest"
  *     responses:
  *       201:
  *         description: User registered successfully
