@@ -56,9 +56,10 @@ const swaggerOptions = {
     './src/moduls/customer/site.router.js',
     './src/moduls/Inventory/product.router.js',
     './src/moduls/brand/brand.router.js',
+    './src/moduls/Inventory/category.router.js',
   ], // Path to the API docs
 };
-
+  
 const swaggerDocs = swaggerJSDoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
