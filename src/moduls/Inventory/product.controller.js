@@ -627,9 +627,162 @@ const getProductDropdown = async (req, res) => {
   }
 };
 
+// ========== Product Filter API (Combined Function) ==========
+const getProductFilters = async (req, res) => {
+  try {
+    const { 
+      brand, 
+      category, 
+      subcategory, 
+      page = 1, 
+      limit = 50,
+      type = 'products' // 'products', 'options', 'brands', 'categories', 'subcategories'
+    } = req.query;
+
+    // If type is for getting filter options only
+    if (type !== 'products') {
+      let result = {};
+
+      switch (type) {
+        case 'brands':
+          const brands = await Product.distinct('Product_Brand');
+          result.brands = brands.filter(brand => brand && brand.trim() !== '');
+          break;
+
+        case 'categories':
+          let categoryFilter = {};
+          if (brand) {
+            categoryFilter.Product_Brand = brand;
+          }
+          const categories = await Product.distinct('Product_Category', categoryFilter);
+          result.categories = categories.filter(cat => cat && cat.trim() !== '');
+          break;
+
+        case 'subcategories':
+          let subCategoryFilter = {};
+          if (brand) {
+            subCategoryFilter.Product_Brand = brand;
+          }
+          if (category) {
+            subCategoryFilter.Product_Category = category;
+          }
+          const subcategories = await Product.distinct('Product_Sub_Category', subCategoryFilter);
+          result.subcategories = subcategories.filter(subcat => subcat && subcat.trim() !== '');
+          break;
+
+        case 'options':
+        default:
+          // Get all filter options
+          const allBrands = await Product.distinct('Product_Brand');
+          const allCategories = await Product.distinct('Product_Category');
+          const allSubCategories = await Product.distinct('Product_Sub_Category');
+          
+          result = {
+            brands: allBrands.filter(brand => brand && brand.trim() !== ''),
+            categories: allCategories.filter(cat => cat && cat.trim() !== ''),
+            subcategories: allSubCategories.filter(subcat => subcat && subcat.trim() !== '')
+          };
+          break;
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Filter options retrieved successfully',
+        data: result
+      });
+    }
+
+    // Main product filtering logic
+    let filter = {};
+    let cascadeData = {};
+
+    // Build filter based on selections
+    if (brand) {
+      filter.Product_Brand = brand;
+    }
+    if (category) {
+      filter.Product_Category = category;
+    }
+    if (subcategory) {
+      filter.Product_Sub_Category = subcategory;
+    }
+
+    // Get filtered products
+    const skip = (page - 1) * limit;
+    const products = await Product.find(filter)
+      .select('Prod_ID Product_code Product_Description Product_Brand Product_Category Product_Sub_Category Product_mrp Product_Type Product_Color Product_Series Prod_image Product_gst Product_fragile')
+      .sort({ Prod_ID: 1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const totalProducts = await Product.countDocuments(filter);
+
+    // Get cascading filter data based on current selections
+    if (brand) {
+      // If brand is selected, get categories and subcategories for that brand
+      const categoryFilter = { Product_Brand: brand };
+      const categories = await Product.distinct('Product_Category', categoryFilter);
+      cascadeData.categories = categories.filter(cat => cat && cat.trim() !== '');
+
+      if (category) {
+        // If both brand and category selected, get subcategories
+        const subCategoryFilter = { Product_Brand: brand, Product_Category: category };
+        const subcategories = await Product.distinct('Product_Sub_Category', subCategoryFilter);
+        cascadeData.subcategories = subcategories.filter(subcat => subcat && subcat.trim() !== '');
+      }
+    } else if (category) {
+      // If only category is selected, get subcategories and brands for that category
+      const brandFilter = { Product_Category: category };
+      const brands = await Product.distinct('Product_Brand', brandFilter);
+      cascadeData.brands = brands.filter(brand => brand && brand.trim() !== '');
+
+      const subCategoryFilter = { Product_Category: category };
+      const subcategories = await Product.distinct('Product_Sub_Category', subCategoryFilter);
+      cascadeData.subcategories = subcategories.filter(subcat => subcat && subcat.trim() !== '');
+    } else {
+      // If no filters, get all brands and categories
+      const allBrands = await Product.distinct('Product_Brand');
+      cascadeData.brands = allBrands.filter(brand => brand && brand.trim() !== '');
+      
+      const allCategories = await Product.distinct('Product_Category');
+      cascadeData.categories = allCategories.filter(cat => cat && cat.trim() !== '');
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Product filters applied successfully',
+      data: {
+        products: products,
+        cascadeOptions: cascadeData,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalProducts / limit),
+          totalProducts: totalProducts,
+          hasNext: page * limit < totalProducts,
+          hasPrev: page > 1
+        },
+        appliedFilters: {
+          brand: brand || null,
+          category: category || null,
+          subcategory: subcategory || null
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Product Filter Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 export {
   manageProducts,
   manageDropdownData,
   getProductAnalytics,
-  getProductDropdown
+  getProductDropdown,
+  getProductFilters
 };

@@ -3,7 +3,8 @@ import {
   manageProducts,
   manageDropdownData,
   getProductAnalytics,
-  getProductDropdown
+  getProductDropdown,
+  getProductFilters
 } from './product.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { uploadProductImage, handleUploadError } from '../../middleware/upload.middleware.js';
@@ -617,5 +618,162 @@ router.route('/dropdown/:type/:id').put(protect, manageDropdownData).delete(prot
  *         description: Not authorized
  */
 router.get('/analytics', protect, getProductAnalytics);
+
+// ========== Filter Routes ==========
+
+/**
+ * @swagger
+ * /api/product/filters:
+ *   get:
+ *     summary: Get products with cascading filters OR get filter options (Brand -> Category -> Sub Category)
+ *     tags: [Product]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [products, options, brands, categories, subcategories]
+ *           default: products
+ *         description: |
+ *           - products: Get filtered products with cascading options
+ *           - options: Get all filter options (brands, categories, subcategories)  
+ *           - brands: Get only brands list
+ *           - categories: Get categories (filtered by brand if provided)
+ *           - subcategories: Get subcategories (filtered by brand/category if provided)
+ *         example: "products"
+ *       - in: query
+ *         name: brand
+ *         schema:
+ *           type: string
+ *         description: Filter by brand name
+ *         example: "Kajaria"
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category name
+ *         example: "Tiles"
+ *       - in: query
+ *         name: subcategory
+ *         schema:
+ *           type: string
+ *         description: Filter by subcategory name
+ *         example: "Floor Tiles"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination (only for type=products)
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of products per page (only for type=products)
+ *         example: 50
+ *     responses:
+ *       200:
+ *         description: Success response varies by type parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               oneOf:
+ *                 - type: object
+ *                   description: Response when type=products
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: true
+ *                     message:
+ *                       type: string
+ *                       example: "Product filters applied successfully"
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         products:
+ *                           type: array
+ *                           items:
+ *                             $ref: '#/components/schemas/Product'
+ *                         cascadeOptions:
+ *                           type: object
+ *                           description: Available options for next level filtering
+ *                           properties:
+ *                             brands:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                               description: Available brands (when category is selected)
+ *                             categories:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                               description: Available categories (when brand is selected)
+ *                             subcategories:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                               description: Available subcategories (when brand/category is selected)
+ *                         pagination:
+ *                           type: object
+ *                           properties:
+ *                             currentPage:
+ *                               type: integer
+ *                             totalPages:
+ *                               type: integer
+ *                             totalProducts:
+ *                               type: integer
+ *                             hasNext:
+ *                               type: boolean
+ *                             hasPrev:
+ *                               type: boolean
+ *                         appliedFilters:
+ *                           type: object
+ *                           properties:
+ *                             brand:
+ *                               type: string
+ *                             category:
+ *                               type: string
+ *                             subcategory:
+ *                               type: string
+ *                 - type: object
+ *                   description: Response when type=options/brands/categories/subcategories
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                       example: true
+ *                     message:
+ *                       type: string
+ *                       example: "Filter options retrieved successfully"
+ *                     data:
+ *                       type: object
+ *                       properties:
+ *                         brands:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                           description: List of available brands
+ *                           example: ["Kajaria", "Somany", "Orient Bell"]
+ *                         categories:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                           description: List of available categories
+ *                           example: ["Tiles", "Sanitaryware", "Faucets"]
+ *                         subcategories:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                           description: List of available subcategories
+ *                           example: ["Floor Tiles", "Wall Tiles", "Designer Tiles"]
+ *       401:
+ *         description: Not authorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/filters', protect, getProductFilters);
 
 export default router;
