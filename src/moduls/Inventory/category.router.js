@@ -1,4 +1,3 @@
-
 /**
  * @swagger
  * tags:
@@ -192,6 +191,43 @@ router.delete('/categories/:id', categoryController.deleteCategory);
  *         description: Category not found
  */
 router.post('/categories/:id/subcategories', categoryController.addSubcategory);
+
+/**
+ * @swagger
+ * /api/category/categories/{id}/subcategories/multiple:
+ *   post:
+ *     summary: Add multiple subcategories to a category
+ *     tags: [Categories]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Category ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               subcategories:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Subcategories added
+ *       400:
+ *         description: Bad request
+ *       404:
+ *         description: Category not found
+ */
+router.post('/categories/:id/subcategories/multiple', categoryController.addMultipleSubcategories);
 
 /**
  * @swagger

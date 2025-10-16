@@ -1,4 +1,3 @@
-
 /**
  * Category Controller
  * @module controllers/Category
@@ -156,6 +155,28 @@ const deleteSubcategory = async (req, res) => {
 		res.status(400).json({ error: err.message });
 	}
 };
+
+/**
+ * Add multiple subcategories to a category
+ * @param {Request} req
+ * @param {Response} res
+ */
+const addMultipleSubcategories = async (req, res) => {
+	try {
+		const { subcategories } = req.body;
+		const category = await Category.findById(req.params.id);
+		if (!category) return res.status(404).json({ error: 'Category not found' });
+		if (!Array.isArray(subcategories) || subcategories.length === 0) {
+			return res.status(400).json({ error: 'Subcategories must be a non-empty array' });
+		}
+		category.subcategories.push(...subcategories.map(sub => ({ name: sub.name })));
+		await category.save();
+		res.json(category);
+	} catch (err) {
+		res.status(400).json({ error: err.message });
+	}
+};
+
 export default {
 	createCategory,
 	getCategories,
@@ -165,5 +186,6 @@ export default {
 	deleteCategory,
 	addSubcategory,
 	updateSubcategory,
-	deleteSubcategory
+	deleteSubcategory,
+	addMultipleSubcategories
 };
