@@ -57,6 +57,7 @@ const swaggerOptions = {
     './src/moduls/Inventory/product.router.js',
     './src/moduls/brand/brand.router.js',
     './src/moduls/Inventory/category.router.js',
+    './src/moduls/Inventory/color.router.js',
   ], // Path to the API docs
 };
   

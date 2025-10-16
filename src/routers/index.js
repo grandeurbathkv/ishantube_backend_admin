@@ -9,6 +9,7 @@ import siteRouter from '../moduls/customer/site.router.js';
 import productRouter from '../moduls/Inventory/product.router.js';
 import brandRouter from '../moduls/brand/brand.router.js';
 import categoryRouter from '../moduls/Inventory/category.router.js';
+import colorRouter from '../moduls/Inventory/color.router.js';
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use('/product', productRouter);
 
 router.use('/brand', brandRouter);
 router.use('/category', categoryRouter);
+router.use('/', colorRouter);
 
 
 export default router;
