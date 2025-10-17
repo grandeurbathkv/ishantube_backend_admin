@@ -169,8 +169,8 @@ const productSchema = new mongoose.Schema({
   },
   Product_Series: {
     type: String,
-    required: [true, 'Product series is required'],
-    trim: true
+    // required: [true, 'Product series is required'],
+    // trim: true
   },
   Product_Discount_sale_low: {
     type: Number,

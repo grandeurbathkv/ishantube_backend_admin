@@ -13,7 +13,7 @@ connectDB();
 const app = express();
 
 app.use(cors({
-  origin: "*", 
+  origin: "*",
   credentials: true
 }));
 
@@ -48,19 +48,20 @@ const swaggerOptions = {
     },
   },
   apis: [
-    './src/moduls/users/user.router.js', 
-    './src/moduls/customer/channelPartner.router.js', 
+    './src/moduls/users/user.router.js',
+    './src/moduls/customer/channelPartner.router.js',
     './src/moduls/customer/channelPartnerIncentive.router.js',
-    './src/moduls/customer/architect.router.js', 
-    './src/moduls/customer/party.router.js', 
+    './src/moduls/customer/architect.router.js',
+    './src/moduls/customer/party.router.js',
     './src/moduls/customer/site.router.js',
     './src/moduls/Inventory/product.router.js',
     './src/moduls/brand/brand.router.js',
     './src/moduls/Inventory/category.router.js',
     './src/moduls/Inventory/color.router.js',
+    './src/moduls/Inventory/series.router.js',
   ], // Path to the API docs
 };
-  
+
 const swaggerDocs = swaggerJSDoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
