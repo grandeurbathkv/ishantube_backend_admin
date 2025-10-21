@@ -4,10 +4,12 @@ import {
   manageDropdownData,
   getProductAnalytics,
   getProductDropdown,
-  getProductFilters
+  getProductFilters,
+  uploadProductsFromExcel,
+  generateProductsPDF
 } from './product.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { uploadProductImage, handleUploadError } from '../../middleware/upload.middleware.js';
+import { uploadProductImage, uploadExcelFile, handleUploadError } from '../../middleware/upload.middleware.js';
 
 const router = express.Router();
 
@@ -775,5 +777,206 @@ router.get('/analytics', protect, getProductAnalytics);
  *         description: Internal server error
  */
 router.get('/filters', protect, getProductFilters);
+
+// ========== Excel Upload and PDF Export Routes ==========
+
+/**
+ * @swagger
+ * /api/product/upload-excel:
+ *   post:
+ *     summary: Upload Products from Excel file
+ *     tags: [Product]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Excel file (.xlsx or .xls) containing Product data. Expected columns - Product_code, Product_Description, Product_Brand, Product_Type, Product_Color, Product_mrp, Product_Flag, Product_Category, Product_Sub_Category, Product_Series, etc.
+ *     responses:
+ *       200:
+ *         description: Excel file processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Excel upload completed. 25/30 records processed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalRows:
+ *                           type: number
+ *                           example: 30
+ *                         successful:
+ *                           type: number
+ *                           example: 25
+ *                         failed:
+ *                           type: number
+ *                           example: 3
+ *                         duplicates:
+ *                           type: number
+ *                           example: 2
+ *                     successful:
+ *                       type: array
+ *                       description: Successfully created records
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 2
+ *                           data:
+ *                             $ref: '#/components/schemas/Product'
+ *                     failed:
+ *                       type: array
+ *                       description: Records that failed validation
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 5
+ *                           data:
+ *                             type: object
+ *                           error:
+ *                             type: string
+ *                             example: "Product Code is required"
+ *                     duplicates:
+ *                       type: array
+ *                       description: Records that already exist
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           row:
+ *                             type: number
+ *                             example: 8
+ *                           data:
+ *                             type: object
+ *                           existing:
+ *                             $ref: '#/components/schemas/Product'
+ *                           error:
+ *                             type: string
+ *                             example: "Product with this code already exists"
+ *       400:
+ *         description: Invalid file format, validation error, or empty file
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Only .xlsx and .xls files are allowed"
+ *       401:
+ *         description: Not authorized
+ */
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadProductsFromExcel);
+
+/**
+ * @swagger
+ * /api/product/export-pdf:
+ *   get:
+ *     summary: Generate and download Products PDF report
+ *     tags: [Product]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search filter to apply before generating PDF
+ *         example: "ceramic"
+ *       - in: query
+ *         name: brand
+ *         schema:
+ *           type: string
+ *         description: Filter by brand before generating PDF
+ *         example: "Kajaria"
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category before generating PDF
+ *         example: "Tiles"
+ *       - in: query
+ *         name: sub_category
+ *         schema:
+ *           type: string
+ *         description: Filter by sub category before generating PDF
+ *         example: "Floor Tiles"
+ *       - in: query
+ *         name: product_type
+ *         schema:
+ *           type: string
+ *           enum: [Rough, Trim]
+ *         description: Filter by product type before generating PDF
+ *         example: "Rough"
+ *       - in: query
+ *         name: color
+ *         schema:
+ *           type: string
+ *         description: Filter by color before generating PDF
+ *         example: "White"
+ *       - in: query
+ *         name: includeStock
+ *         schema:
+ *           type: string
+ *           enum: [true, false]
+ *           default: false
+ *         description: Whether to include stock data in the PDF
+ *         example: "true"
+ *     responses:
+ *       200:
+ *         description: PDF file generated and downloaded successfully
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *               description: PDF file containing Products report
+ *         headers:
+ *           Content-Disposition:
+ *             description: Attachment filename
+ *             schema:
+ *               type: string
+ *               example: 'attachment; filename="products-2025-01-06.pdf"'
+ *       404:
+ *         description: No Products found to export
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "No Products found to export"
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/export-pdf', protect, generateProductsPDF);
 
 export default router;
