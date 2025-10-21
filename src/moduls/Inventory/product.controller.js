@@ -7,6 +7,9 @@ import {
   ProductSeries 
 } from './product.model.js';
 import mongoose from 'mongoose';
+import XLSX from 'xlsx';
+import path from 'path';
+import fs from 'fs';
 
 // ========== Main Product Management (Consolidated CRUD) ==========
 const manageProducts = async (req, res) => {
@@ -779,10 +782,569 @@ const getProductFilters = async (req, res) => {
   }
 };
 
+// ========== Upload Products from Excel file ==========
+// @desc    Upload Products from Excel file
+// @route   POST /api/product/upload-excel
+// @access  Protected
+const uploadProductsFromExcel = async (req, res, next) => {
+  try {
+    console.log('Product Excel upload initiated...');
+    
+    // Check if file is uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is required'
+      });
+    }
+
+    // Validate file type
+    const allowedExtensions = ['.xlsx', '.xls'];
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only .xlsx and .xls files are allowed'
+      });
+    }
+
+    console.log('Reading Excel file...');
+    
+    // Read Excel file
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0]; // Get first sheet
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert to JSON
+    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    
+    if (!jsonData || jsonData.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Excel file is empty or has no valid data'
+      });
+    }
+
+    console.log(`Found ${jsonData.length} rows in Excel file`);
+
+    // Validate and process data
+    const results = {
+      successful: [],
+      failed: [],
+      duplicates: [],
+      totalRows: jsonData.length
+    };
+
+    const userId = req.user._id;
+
+    // Expected columns (flexible mapping)
+    const columnMapping = {
+      'Product_code': ['Product_code', 'Product Code', 'Code', 'SKU'],
+      'Product_Description': ['Product_Description', 'Product Description', 'Description', 'Name'],
+      'Product_Brand': ['Product_Brand', 'Product Brand', 'Brand'],
+      'Product_Type': ['Product_Type', 'Product Type', 'Type'],
+      'Product_Color': ['Product_Color', 'Product Color', 'Color'],
+      'Product_mrp': ['Product_mrp', 'Product MRP', 'MRP', 'Price'],
+      'Product_Flag': ['Product_Flag', 'Product Flag', 'Flag'],
+      'Product_Category': ['Product_Category', 'Product Category', 'Category'],
+      'Product_Sub_Category': ['Product_Sub_Category', 'Product Sub Category', 'Sub Category', 'Subcategory'],
+      'Product_Series': ['Product_Series', 'Product Series', 'Series'],
+      'Product_Discount_sale_low': ['Product_Discount_sale_low', 'Discount Low', 'Low Discount'],
+      'Product_discount_sale_high': ['Product_discount_sale_high', 'Discount High', 'High Discount'],
+      'Prod_Purc_scheme': ['Prod_Purc_scheme', 'Purchase Scheme', 'Scheme'],
+      'Prod_scheme_discount': ['Prod_scheme_discount', 'Scheme Discount'],
+      'Product_purc_base_disc': ['Product_purc_base_disc', 'Base Discount'],
+      'Product_opening_stock': ['Product_opening_stock', 'Opening Stock', 'Stock'],
+      'Product_Fresh_Stock': ['Product_Fresh_Stock', 'Fresh Stock'],
+      'Product_Damage_stock': ['Product_Damage_stock', 'Damage Stock'],
+      'Product_sample_stock': ['Product_sample_stock', 'Sample Stock'],
+      'Prod_Showroom_stock': ['Prod_Showroom_stock', 'Showroom Stock'],
+      'Product_gst': ['Product_gst', 'GST', 'Tax'],
+      'Product_fragile': ['Product_fragile', 'Fragile', 'Breakable'],
+      'Product_Notes': ['Product_Notes', 'Notes', 'Remarks'],
+      'Product_mustorder': ['Product_mustorder', 'Must Order', 'Reference']
+    };
+
+    // Helper function to find column value
+    const findColumnValue = (row, fieldName) => {
+      const possibleColumns = columnMapping[fieldName] || [fieldName];
+      for (const col of possibleColumns) {
+        if (row[col] !== undefined && row[col] !== null && row[col] !== '') {
+          return row[col];
+        }
+      }
+      return null;
+    };
+
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      const rowNumber = i + 2; // Excel row number (considering header)
+
+      try {
+        // Extract data from row
+        const productCode = findColumnValue(row, 'Product_code');
+        const productDescription = findColumnValue(row, 'Product_Description');
+        const productBrand = findColumnValue(row, 'Product_Brand');
+        const productType = findColumnValue(row, 'Product_Type');
+        const productColor = findColumnValue(row, 'Product_Color');
+        const productMrp = findColumnValue(row, 'Product_mrp');
+        const productFlag = findColumnValue(row, 'Product_Flag');
+        const productCategory = findColumnValue(row, 'Product_Category');
+        const productSubCategory = findColumnValue(row, 'Product_Sub_Category');
+
+        // Validate required fields
+        if (!productCode) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Code is required'
+          });
+          continue;
+        }
+
+        if (!productDescription) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Description is required'
+          });
+          continue;
+        }
+
+        if (!productBrand) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Brand is required'
+          });
+          continue;
+        }
+
+        if (!productType || !['Rough', 'Trim'].includes(productType)) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Type is required and must be "Rough" or "Trim"'
+          });
+          continue;
+        }
+
+        if (!productColor) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Color is required'
+          });
+          continue;
+        }
+
+        if (!productMrp || isNaN(productMrp) || parseFloat(productMrp) <= 0) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product MRP is required and must be a positive number'
+          });
+          continue;
+        }
+
+        if (!productFlag || !['S2s', 'o2s'].includes(productFlag)) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Flag is required and must be "S2s" or "o2s"'
+          });
+          continue;
+        }
+
+        if (!productCategory) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Category is required'
+          });
+          continue;
+        }
+
+        if (!productSubCategory) {
+          results.failed.push({
+            row: rowNumber,
+            data: row,
+            error: 'Product Sub Category is required'
+          });
+          continue;
+        }
+
+        // Check for duplicates
+        const existingProduct = await Product.findOne({ Product_code: productCode });
+        if (existingProduct) {
+          results.duplicates.push({
+            row: rowNumber,
+            data: row,
+            existing: existingProduct,
+            error: 'Product with this code already exists'
+          });
+          continue;
+        }
+
+        // Auto-create dropdowns if needed
+        if (productBrand) {
+          await ProductBrand.getOrCreate(productBrand, userId);
+        }
+        if (productColor) {
+          await ProductColor.getOrCreate(productColor, userId);
+        }
+        if (productCategory) {
+          await ProductCategory.getOrCreate(productCategory, userId);
+        }
+        if (productSubCategory && productCategory) {
+          await ProductSubCategory.getOrCreate(productSubCategory, productCategory, userId);
+        }
+        
+        const productSeries = findColumnValue(row, 'Product_Series');
+        if (productSeries) {
+          await ProductSeries.getOrCreate(productSeries, userId);
+        }
+
+        // Create product data object
+        const productData = {
+          Product_code: productCode,
+          Product_Description: productDescription,
+          Product_Brand: productBrand,
+          Product_Type: productType,
+          Product_Color: productColor,
+          Product_mrp: parseFloat(productMrp),
+          Product_Flag: productFlag,
+          Product_Category: productCategory,
+          Product_Sub_Category: productSubCategory,
+          Product_Series: productSeries || '',
+          Product_Discount_sale_low: parseFloat(findColumnValue(row, 'Product_Discount_sale_low')) || 0,
+          Product_discount_sale_high: parseFloat(findColumnValue(row, 'Product_discount_sale_high')) || 0,
+          Prod_Purc_scheme: findColumnValue(row, 'Prod_Purc_scheme') === 'true' || findColumnValue(row, 'Prod_Purc_scheme') === true || false,
+          Prod_scheme_discount: parseFloat(findColumnValue(row, 'Prod_scheme_discount')) || 0,
+          Product_purc_base_disc: parseFloat(findColumnValue(row, 'Product_purc_base_disc')) || 0,
+          Product_opening_stock: parseFloat(findColumnValue(row, 'Product_opening_stock')) || 0,
+          Product_Fresh_Stock: parseFloat(findColumnValue(row, 'Product_Fresh_Stock')) || 0,
+          Product_Damage_stock: parseFloat(findColumnValue(row, 'Product_Damage_stock')) || 0,
+          Product_sample_stock: parseFloat(findColumnValue(row, 'Product_sample_stock')) || 0,
+          Prod_Showroom_stock: parseFloat(findColumnValue(row, 'Prod_Showroom_stock')) || 0,
+          Product_gst: parseFloat(findColumnValue(row, 'Product_gst')) || 0,
+          Product_fragile: findColumnValue(row, 'Product_fragile') === 'true' || findColumnValue(row, 'Product_fragile') === true || false,
+          Product_Notes: findColumnValue(row, 'Product_Notes') || '',
+          Product_mustorder: findColumnValue(row, 'Product_mustorder') || 'NA',
+          created_by: userId
+        };
+
+        // Create new product
+        const newProduct = await Product.create(productData);
+
+        results.successful.push({
+          row: rowNumber,
+          data: newProduct
+        });
+
+      } catch (error) {
+        console.error(`Error processing row ${rowNumber}:`, error);
+        results.failed.push({
+          row: rowNumber,
+          data: row,
+          error: error.message || 'Unknown error occurred'
+        });
+      }
+    }
+
+    // Clean up uploaded file
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (cleanupError) {
+      console.warn('Could not delete uploaded file:', cleanupError.message);
+    }
+
+    console.log('Product Excel upload completed:', {
+      total: results.totalRows,
+      successful: results.successful.length,
+      failed: results.failed.length,
+      duplicates: results.duplicates.length
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Excel upload completed. ${results.successful.length}/${results.totalRows} records processed successfully`,
+      data: {
+        summary: {
+          totalRows: results.totalRows,
+          successful: results.successful.length,
+          failed: results.failed.length,
+          duplicates: results.duplicates.length
+        },
+        successful: results.successful,
+        failed: results.failed,
+        duplicates: results.duplicates
+      }
+    });
+
+  } catch (error) {
+    console.error('Product Excel upload error:', error);
+    
+    // Clean up uploaded file in case of error
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.warn('Could not delete uploaded file:', cleanupError.message);
+      }
+    }
+    
+    next(error);
+  }
+};
+
+// ========== Generate and download Products PDF ==========
+// @desc    Generate and download Products PDF
+// @route   GET /api/product/export-pdf
+// @access  Protected
+const generateProductsPDF = async (req, res, next) => {
+  try {
+    console.log('Product PDF generation initiated...');
+    
+    // Dynamic import of jsPDF to handle ES module compatibility
+    const jsPDFModule = await import('jspdf');
+    const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
+    await import('jspdf-autotable');
+    
+    // Get query parameters for filtering
+    const { 
+      search, 
+      brand, 
+      category, 
+      sub_category, 
+      product_type, 
+      color,
+      includeStock = 'false' 
+    } = req.query;
+    
+    let filter = {};
+
+    // Apply search filter if provided
+    if (search) {
+      filter.$or = [
+        { Prod_ID: new RegExp(search, 'i') },
+        { Product_code: new RegExp(search, 'i') },
+        { Product_Description: new RegExp(search, 'i') },
+        { Product_Brand: new RegExp(search, 'i') },
+        { Product_Category: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Apply specific filters
+    if (brand) filter.Product_Brand = brand;
+    if (category) filter.Product_Category = category;
+    if (sub_category) filter.Product_Sub_Category = sub_category;
+    if (product_type) filter.Product_Type = product_type;
+    if (color) filter.Product_Color = color;
+
+    // Fetch products data
+    const products = await Product.find(filter).sort({ Prod_ID: 1 });
+
+    if (!products || products.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No Products found to export'
+      });
+    }
+
+    console.log(`Generating PDF for ${products.length} Products`);
+
+    // Create new PDF document
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    // Add title
+    doc.setFontSize(20);
+    doc.setTextColor(40, 116, 166);
+    doc.text('Products Report', 14, 20);
+
+    // Add generation date and filter info
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    const currentDate = new Date().toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.text(`Generated on: ${currentDate}`, 14, 28);
+    
+    let yPos = 33;
+    if (search) {
+      doc.text(`Search Filter: "${search}"`, 14, yPos);
+      yPos += 5;
+    }
+    if (brand) {
+      doc.text(`Brand Filter: "${brand}"`, 14, yPos);
+      yPos += 5;
+    }
+    if (category) {
+      doc.text(`Category Filter: "${category}"`, 14, yPos);
+      yPos += 5;
+    }
+    
+    doc.text(`Total Records: ${products.length}`, 14, yPos);
+    yPos += 5;
+
+    // Prepare table data
+    let tableColumns, tableRows;
+
+    if (includeStock === 'true') {
+      tableColumns = [
+        'S.No.',
+        'Product ID',
+        'Code',
+        'Description',
+        'Brand',
+        'Type',
+        'Category',
+        'MRP',
+        'Opening Stock',
+        'Fresh Stock',
+        'Damage Stock'
+      ];
+
+      tableRows = products.map((product, index) => [
+        (index + 1).toString(),
+        product.Prod_ID || '-',
+        product.Product_code || '-',
+        (product.Product_Description || '-').substring(0, 30) + '...',
+        product.Product_Brand || '-',
+        product.Product_Type || '-',
+        product.Product_Category || '-',
+        `₹${product.Product_mrp || 0}`,
+        product.Product_opening_stock || 0,
+        product.Product_Fresh_Stock || 0,
+        product.Product_Damage_stock || 0
+      ]);
+    } else {
+      tableColumns = [
+        'S.No.',
+        'Product ID',
+        'Code',
+        'Description',
+        'Brand',
+        'Type',
+        'Color',
+        'Category',
+        'Sub Category',
+        'MRP',
+        'GST%'
+      ];
+
+      tableRows = products.map((product, index) => [
+        (index + 1).toString(),
+        product.Prod_ID || '-',
+        product.Product_code || '-',
+        (product.Product_Description || '-').substring(0, 25) + '...',
+        product.Product_Brand || '-',
+        product.Product_Type || '-',
+        product.Product_Color || '-',
+        product.Product_Category || '-',
+        product.Product_Sub_Category || '-',
+        `₹${product.Product_mrp || 0}`,
+        `${product.Product_gst || 0}%`
+      ]);
+    }
+
+    // Add table to PDF
+    doc.autoTable({
+      head: [tableColumns],
+      body: tableRows,
+      startY: yPos + 5,
+      theme: 'striped',
+      headStyles: {
+        fillColor: [40, 116, 166],
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      bodyStyles: {
+        textColor: 50
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
+      },
+      columnStyles: includeStock === 'true' ? {
+        0: { cellWidth: 15, halign: 'center' }, // S.No.
+        1: { cellWidth: 25, halign: 'center' }, // Product ID
+        2: { cellWidth: 25, halign: 'left' },   // Code
+        3: { cellWidth: 40, halign: 'left' },   // Description
+        4: { cellWidth: 25, halign: 'left' },   // Brand
+        5: { cellWidth: 20, halign: 'center' }, // Type
+        6: { cellWidth: 25, halign: 'left' },   // Category
+        7: { cellWidth: 25, halign: 'right' },  // MRP
+        8: { cellWidth: 20, halign: 'center' }, // Opening Stock
+        9: { cellWidth: 20, halign: 'center' }, // Fresh Stock
+        10: { cellWidth: 20, halign: 'center' } // Damage Stock
+      } : {
+        0: { cellWidth: 15, halign: 'center' }, // S.No.
+        1: { cellWidth: 25, halign: 'center' }, // Product ID
+        2: { cellWidth: 25, halign: 'left' },   // Code
+        3: { cellWidth: 35, halign: 'left' },   // Description
+        4: { cellWidth: 25, halign: 'left' },   // Brand
+        5: { cellWidth: 20, halign: 'center' }, // Type
+        6: { cellWidth: 25, halign: 'left' },   // Color
+        7: { cellWidth: 25, halign: 'left' },   // Category
+        8: { cellWidth: 25, halign: 'left' },   // Sub Category
+        9: { cellWidth: 25, halign: 'right' },  // MRP
+        10: { cellWidth: 20, halign: 'center' } // GST%
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 2
+      },
+      margin: { top: 10, left: 14, right: 14 }
+    });
+
+    // Add footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(100);
+      doc.text(
+        `Page ${i} of ${pageCount} | Generated by IshanthTube Admin System`,
+        14,
+        doc.internal.pageSize.height - 10
+      );
+    }
+
+    // Generate filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+    const filename = `products-${timestamp}.pdf`;
+
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Send PDF
+    const pdfOutput = doc.output();
+    res.send(Buffer.from(pdfOutput, 'binary'));
+
+    console.log(`Product PDF generated successfully: ${filename}`);
+
+  } catch (error) {
+    console.error('Product PDF generation error:', error);
+    next(error);
+  }
+};
+
 export {
   manageProducts,
   manageDropdownData,
   getProductAnalytics,
   getProductDropdown,
-  getProductFilters
+  getProductFilters,
+  uploadProductsFromExcel,
+  generateProductsPDF
 };
