@@ -788,45 +788,60 @@ const getProductFilters = async (req, res) => {
 // @access  Protected
 const uploadProductsFromExcel = async (req, res, next) => {
   try {
-    console.log('Product Excel upload initiated...');
+    console.log('========================================');
+    console.log('STEP 1: Product Excel upload initiated...');
+    console.log('Request body:', req.body);
+    console.log('Request file:', req.file);
+    console.log('========================================');
     
     // Check if file is uploaded
     if (!req.file) {
+      console.log('ERROR: No file uploaded');
       return res.status(400).json({
         success: false,
         message: 'Excel file is required'
       });
     }
 
+    console.log('STEP 2: File received:', req.file.originalname);
+    
     // Validate file type
     const allowedExtensions = ['.xlsx', '.xls'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
     
+    console.log('STEP 3: Validating file extension:', fileExtension);
+    
     if (!allowedExtensions.includes(fileExtension)) {
+      console.log('ERROR: Invalid file extension');
       return res.status(400).json({
         success: false,
         message: 'Only .xlsx and .xls files are allowed'
       });
     }
 
-    console.log('Reading Excel file...');
+    console.log('STEP 4: Reading Excel file from path:', req.file.path);
     
     // Read Excel file
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0]; // Get first sheet
     const worksheet = workbook.Sheets[sheetName];
     
+    console.log('STEP 5: Excel file read successfully, sheet name:', sheetName);
+    
     // Convert to JSON
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
     
+    console.log('STEP 6: Excel data converted to JSON');
+    
     if (!jsonData || jsonData.length === 0) {
+      console.log('ERROR: Excel file is empty');
       return res.status(400).json({
         success: false,
         message: 'Excel file is empty or has no valid data'
       });
     }
 
-    console.log(`Found ${jsonData.length} rows in Excel file`);
+    console.log(`STEP 7: Found ${jsonData.length} rows in Excel file`);
 
     // Validate and process data
     const results = {
@@ -1056,16 +1071,20 @@ const uploadProductsFromExcel = async (req, res, next) => {
     // Clean up uploaded file
     try {
       fs.unlinkSync(req.file.path);
+      console.log('STEP 10: Uploaded file deleted successfully');
     } catch (cleanupError) {
-      console.warn('Could not delete uploaded file:', cleanupError.message);
+      console.warn('WARNING: Could not delete uploaded file:', cleanupError.message);
     }
 
-    console.log('Product Excel upload completed:', {
+    console.log('========================================');
+    console.log('STEP 11: Product Excel upload completed');
+    console.log('Summary:', {
       total: results.totalRows,
       successful: results.successful.length,
       failed: results.failed.length,
       duplicates: results.duplicates.length
     });
+    console.log('========================================');
 
     return res.status(200).json({
       success: true,
@@ -1084,14 +1103,19 @@ const uploadProductsFromExcel = async (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('Product Excel upload error:', error);
+    console.error('========================================');
+    console.error('ERROR in Product Excel upload:');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('========================================');
     
     // Clean up uploaded file in case of error
     if (req.file && req.file.path) {
       try {
         fs.unlinkSync(req.file.path);
+        console.log('Cleanup: Uploaded file deleted after error');
       } catch (cleanupError) {
-        console.warn('Could not delete uploaded file:', cleanupError.message);
+        console.warn('WARNING: Could not delete uploaded file:', cleanupError.message);
       }
     }
     
@@ -1100,17 +1124,22 @@ const uploadProductsFromExcel = async (req, res, next) => {
 };
 
 // ========== Generate and download Products PDF ==========
-// @desc    Generate and download Products PDF
+// @desc    Generate and download Products PDF  
 // @route   GET /api/product/export-pdf
 // @access  Protected
 const generateProductsPDF = async (req, res, next) => {
   try {
-    console.log('Product PDF generation initiated...');
+    console.log('========================================');
+    console.log('STEP 1: Product PDF generation initiated...');
+    console.log('Query parameters:', req.query);
+    console.log('========================================');
     
     // Dynamic import of jsPDF to handle ES module compatibility
+    console.log('STEP 2: Loading jsPDF module...');
     const jsPDFModule = await import('jspdf');
     const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
     await import('jspdf-autotable');
+    console.log('STEP 2: jsPDF module loaded successfully');
     
     // Get query parameters for filtering
     const { 
@@ -1123,10 +1152,14 @@ const generateProductsPDF = async (req, res, next) => {
       includeStock = 'false' 
     } = req.query;
     
+    console.log('STEP 3: Building filter...');
+    console.log('includeStock parameter:', includeStock);
+    
     let filter = {};
 
     // Apply search filter if provided
     if (search) {
+      console.log('Applying search filter:', search);
       filter.$or = [
         { Prod_ID: new RegExp(search, 'i') },
         { Product_code: new RegExp(search, 'i') },
@@ -1137,23 +1170,44 @@ const generateProductsPDF = async (req, res, next) => {
     }
 
     // Apply specific filters
-    if (brand) filter.Product_Brand = brand;
-    if (category) filter.Product_Category = category;
-    if (sub_category) filter.Product_Sub_Category = sub_category;
-    if (product_type) filter.Product_Type = product_type;
-    if (color) filter.Product_Color = color;
+    if (brand) {
+      console.log('Applying brand filter:', brand);
+      filter.Product_Brand = brand;
+    }
+    if (category) {
+      console.log('Applying category filter:', category);
+      filter.Product_Category = category;
+    }
+    if (sub_category) {
+      console.log('Applying sub_category filter:', sub_category);
+      filter.Product_Sub_Category = sub_category;
+    }
+    if (product_type) {
+      console.log('Applying product_type filter:', product_type);
+      filter.Product_Type = product_type;
+    }
+    if (color) {
+      console.log('Applying color filter:', color);
+      filter.Product_Color = color;
+    }
+
+    console.log('STEP 4: Final filter applied:', JSON.stringify(filter));
 
     // Fetch products data
+    console.log('STEP 5: Fetching products from database...');
     const products = await Product.find(filter).sort({ Prod_ID: 1 });
+    console.log('STEP 5: Products fetched, count:', products ? products.length : 0);
 
     if (!products || products.length === 0) {
+      console.log('STEP 6: No products found, returning 404');
+      console.log('========================================');
       return res.status(404).json({
         success: false,
         message: 'No Products found to export'
       });
     }
 
-    console.log(`Generating PDF for ${products.length} Products`);
+    console.log(`STEP 6: Generating PDF for ${products.length} Products`);
 
     // Create new PDF document
     const doc = new jsPDF({
@@ -1328,13 +1382,19 @@ const generateProductsPDF = async (req, res, next) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     // Send PDF
+    console.log('STEP 10: Sending PDF to client...');
     const pdfOutput = doc.output();
     res.send(Buffer.from(pdfOutput, 'binary'));
 
-    console.log(`Product PDF generated successfully: ${filename}`);
+    console.log(`STEP 11: Product PDF generated successfully: ${filename}`);
+    console.log('========================================');
 
   } catch (error) {
-    console.error('Product PDF generation error:', error);
+    console.error('========================================');
+    console.error('ERROR in Product PDF generation:');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('========================================');
     next(error);
   }
 };
