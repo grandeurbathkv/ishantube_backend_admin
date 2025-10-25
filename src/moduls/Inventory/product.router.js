@@ -362,7 +362,23 @@ const router = express.Router();
  *         description: Not authorized
  */
 
-// Main CRUD routes with file upload support
+// ========== IMPORTANT: Specific routes MUST come BEFORE dynamic routes ==========
+// Upload Excel route
+router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadProductsFromExcel);
+
+// Export PDF route
+router.get('/export-pdf', protect, generateProductsPDF);
+
+// Product dropdown route
+router.get('/dropdown/list', protect, getProductDropdown);
+
+// Analytics route
+router.get('/analytics', protect, getProductAnalytics);
+
+// Filters route
+router.get('/filters', protect, getProductFilters);
+
+// Main CRUD routes with file upload support (/:id must come AFTER specific routes)
 router.route('/').post(protect, uploadProductImage, handleUploadError, manageProducts).get(protect, manageProducts);
 router.route('/:id').get(protect, manageProducts).put(protect, uploadProductImage, handleUploadError, manageProducts).delete(protect, manageProducts);
 
@@ -425,9 +441,6 @@ router.route('/:id').get(protect, manageProducts).put(protect, uploadProductImag
  *       500:
  *         description: Internal server error
  */
-
-// Product dropdown route
-router.get('/dropdown/list', protect, getProductDropdown);
 
 // ========== Dropdown Management Routes ==========
 
@@ -619,7 +632,6 @@ router.route('/dropdown/:type/:id').put(protect, manageDropdownData).delete(prot
  *       401:
  *         description: Not authorized
  */
-router.get('/analytics', protect, getProductAnalytics);
 
 // ========== Filter Routes ==========
 
@@ -776,7 +788,6 @@ router.get('/analytics', protect, getProductAnalytics);
  *       500:
  *         description: Internal server error
  */
-router.get('/filters', protect, getProductFilters);
 
 // ========== Excel Upload and PDF Export Routes ==========
 
@@ -890,7 +901,6 @@ router.get('/filters', protect, getProductFilters);
  *       401:
  *         description: Not authorized
  */
-router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, uploadProductsFromExcel);
 
 /**
  * @swagger
@@ -977,6 +987,5 @@ router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, upload
  *       401:
  *         description: Not authorized
  */
-router.get('/export-pdf', protect, generateProductsPDF);
 
 export default router;
