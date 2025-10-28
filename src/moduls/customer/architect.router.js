@@ -17,7 +17,7 @@ import {
   processUploadedFile, 
   uploadExcelFile, 
   handleUploadError 
-} from '../../middleware/upload.middleware.js';
+} from '../../middleware/gcs.upload.middleware.js';
 
 const router = express.Router();
 

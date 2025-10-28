@@ -9,7 +9,7 @@ import {
   generateProductsPDF
 } from './product.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { uploadProductImage, uploadExcelFile, handleUploadError } from '../../middleware/upload.middleware.js';
+import { uploadProductImage, uploadExcelFile, handleUploadError } from '../../middleware/gcs.upload.middleware.js';
 
 const router = express.Router();
 

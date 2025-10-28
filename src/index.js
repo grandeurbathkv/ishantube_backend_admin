@@ -68,7 +68,8 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use(express.json()); // Allows parsing of JSON request bodies
 
 // Serve static files from uploads directory
-app.use('/uploads', express.static('uploads'));
+// Commented out - now using Google Cloud Storage
+// app.use('/uploads', express.static('uploads'));
 
 // ✅ Root route
 app.get('/', (req, res) => {
