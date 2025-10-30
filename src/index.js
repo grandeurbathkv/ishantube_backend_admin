@@ -50,7 +50,7 @@ const swaggerOptions = {
         description: 'Local Development server',
       },
       {
-        url: "https://ishantube-backend-admin.onrender.com",
+        url: "https://ishantube-backend-admin-352857787507.europe-west1.run.app",
         description: "Production server (Render)",
       },
     ],
