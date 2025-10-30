@@ -15,6 +15,17 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('🚀 Running in production mode - using Cloud environment variables');
 }
 
+// ===== DEBUG: Print all important environment variables =====
+console.log('========== ENVIRONMENT VARIABLES CHECK ==========');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('MONGO_URI:', process.env.MONGO_URI ? '✅ SET' : '❌ NOT SET');
+console.log('JWT_SECRET:', process.env.JWT_SECRET ? '✅ SET' : '❌ NOT SET');
+console.log('GCS_BUCKET_NAME:', process.env.GCS_BUCKET_NAME || '❌ NOT SET');
+console.log('GCS_PROJECT_ID:', process.env.GCS_PROJECT_ID || '❌ NOT SET');
+console.log('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || '✅ NOT SET (using default Cloud auth)');
+console.log('==============================================');
+
 connectDB();
 
 const app = express();

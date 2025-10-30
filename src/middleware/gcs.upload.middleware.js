@@ -9,6 +9,14 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
 }
 
+// ===== DEBUG LOGGING - Check Environment Variables =====
+console.log('========== GCS CONFIGURATION DEBUG ==========');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('GCS_BUCKET_NAME:', process.env.GCS_BUCKET_NAME || 'NOT SET');
+console.log('GCS_PROJECT_ID:', process.env.GCS_PROJECT_ID || 'NOT SET');
+console.log('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || 'NOT SET');
+console.log('==========================================');
+
 // Initialize Google Cloud Storage
 // In production (Cloud Run), authentication is automatic via service account
 // In local development, use key file if it exists
@@ -16,28 +24,34 @@ let storageConfig = {
   projectId: process.env.GCS_PROJECT_ID || 'sturdy-bastion-476603',
 };
 
+console.log('📦 Storage Config:', JSON.stringify(storageConfig));
+
 // Only use keyFilename if the file exists (for local development)
 const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 let useKeyFile = false;
 
 if (keyFilePath && keyFilePath.trim() !== '' && process.env.NODE_ENV !== 'production') {
   try {
+    console.log('🔍 Checking key file:', keyFilePath);
     if (existsSync(keyFilePath)) {
       storageConfig.keyFilename = keyFilePath;
       useKeyFile = true;
       console.log('🔑 Using GCS key file for authentication (local development)');
+    } else {
+      console.log('❌ Key file does not exist:', keyFilePath);
     }
   } catch (error) {
-    console.log('⚠️  Key file not accessible, using default authentication');
+    console.log('⚠️  Key file check error:', error.message);
   }
 }
 
 if (!useKeyFile) {
   console.log('🔐 Using default GCS authentication (Cloud Run environment)');
-  // In production, don't set keyFilename at all - let Google SDK use default credentials
+  console.log('📋 This will use the service account attached to Cloud Run');
 }
 
 const storage = new Storage(storageConfig);
+console.log('✅ Storage initialized successfully');
 
 const bucketName = process.env.GCS_BUCKET_NAME || 'ishantube-images-2025';
 const bucket = storage.bucket(bucketName);
