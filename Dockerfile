@@ -13,10 +13,8 @@ RUN npm install --production
 # Copy application files
 COPY . .
 
-# ✅ Step 5: Copy your GCS key file into container
-COPY gcs-key.json /app/gcs-key.json
-
-# Remove .env file if it exists (environment variables should come from Cloud Run)
+# Remove sensitive files (environment variables should come from Cloud Run)
+# Key files should NOT be in the container for security
 RUN rm -f .env gcs-key.json google-cloud-key.json 2>/dev/null || true
 
 # Create uploads directories if they don't exist
@@ -30,10 +28,10 @@ RUN mkdir -p uploads/architects \
 # Expose the port your app runs on
 EXPOSE 8080
 
-# Set environment variable for port (Google Cloud Run uses PORT=8080 by default)
+# Set environment variables for Cloud Run
 ENV PORT=8080
-# Unset GOOGLE_APPLICATION_CREDENTIALS to use default Cloud Run authentication
-ENV GOOGLE_APPLICATION_CREDENTIALS=""
+ENV NODE_ENV=production
+# Don't set GOOGLE_APPLICATION_CREDENTIALS - let Cloud Run use default auth
 
 # Start the application
 CMD ["npm", "start"]
