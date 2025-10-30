@@ -7,7 +7,14 @@ import connectDB from './config/db.js';
 import routes from './routers/index.js';
 import errorHandler from './middleware/errorhanddling.js';
 
-dotenv.config();
+// Only load .env in development (not in production/Cloud Run)
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+  console.log('📝 Loaded environment from .env file (development mode)');
+} else {
+  console.log('🚀 Running in production mode - using Cloud environment variables');
+}
+
 connectDB();
 
 const app = express();

@@ -4,20 +4,23 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { existsSync } from 'fs';
 
-dotenv.config();
+// Only load .env in development
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 // Initialize Google Cloud Storage
 // In production (Cloud Run), authentication is automatic via service account
 // In local development, use key file if it exists
 let storageConfig = {
-  projectId: process.env.GCS_PROJECT_ID,
+  projectId: process.env.GCS_PROJECT_ID || 'sturdy-bastion-476603',
 };
 
 // Only use keyFilename if the file exists (for local development)
 const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
 let useKeyFile = false;
 
-if (keyFilePath && keyFilePath.trim() !== '') {
+if (keyFilePath && keyFilePath.trim() !== '' && process.env.NODE_ENV !== 'production') {
   try {
     if (existsSync(keyFilePath)) {
       storageConfig.keyFilename = keyFilePath;
@@ -31,6 +34,7 @@ if (keyFilePath && keyFilePath.trim() !== '') {
 
 if (!useKeyFile) {
   console.log('🔐 Using default GCS authentication (Cloud Run environment)');
+  // In production, don't set keyFilename at all - let Google SDK use default credentials
 }
 
 const storage = new Storage(storageConfig);
