@@ -96,7 +96,7 @@ const manageProducts = async (req, res) => {
           Product_Damage_stock: Product_Damage_stock || 0,
           Product_sample_stock: Product_sample_stock || 0,
           Prod_Showroom_stock: Prod_Showroom_stock || 0,
-          Prod_image: req.file ? req.file.filename : (Prod_image || ''),
+          Prod_image: Prod_image || '',
           Product_gst: Product_gst || 0,
           Product_fragile: Product_fragile || false,
           Product_Notes: Product_Notes || '',
@@ -201,11 +201,6 @@ const manageProducts = async (req, res) => {
         }
 
         const updateData = req.body;
-
-        // Handle file upload for image
-        if (req.file) {
-          updateData.Prod_image = req.file.filename;
-        }
 
         // Auto-create dropdowns if updated
         if (updateData.Product_Brand) {
