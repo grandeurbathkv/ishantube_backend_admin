@@ -14,8 +14,9 @@ let storageConfig = {
 };
 
 // Only use keyFilename if the file exists (for local development)
-if (process.env.GOOGLE_APPLICATION_CREDENTIALS && fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
-  storageConfig.keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+const keyFilePath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (keyFilePath && keyFilePath.trim() !== '' && fs.existsSync(keyFilePath)) {
+  storageConfig.keyFilename = keyFilePath;
   console.log('🔑 Using GCS key file for authentication (local development)');
 } else {
   console.log('🔐 Using default GCS authentication (Cloud Run environment)');

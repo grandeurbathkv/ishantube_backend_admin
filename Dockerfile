@@ -13,6 +13,9 @@ RUN npm install --production
 # Copy application files
 COPY . .
 
+# Remove .env file if it exists (environment variables should come from Cloud Run)
+RUN rm -f .env gcs-key.json google-cloud-key.json 2>/dev/null || true
+
 # Create uploads directories if they don't exist
 RUN mkdir -p uploads/architects \
     uploads/channel-partners \
@@ -26,6 +29,8 @@ EXPOSE 8080
 
 # Set environment variable for port (Google Cloud Run uses PORT=8080 by default)
 ENV PORT=8080
+# Unset GOOGLE_APPLICATION_CREDENTIALS to use default Cloud Run authentication
+ENV GOOGLE_APPLICATION_CREDENTIALS=""
 
 # Start the application
 CMD ["npm", "start"]
