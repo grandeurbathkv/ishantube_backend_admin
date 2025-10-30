@@ -2,14 +2,26 @@ import { Storage } from '@google-cloud/storage';
 import multer from 'multer';
 import path from 'path';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
 
 // Initialize Google Cloud Storage
-const storage = new Storage({
+// In production (Cloud Run), authentication is automatic via service account
+// In local development, use key file if it exists
+let storageConfig = {
   projectId: process.env.GCS_PROJECT_ID,
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-});
+};
+
+// Only use keyFilename if the file exists (for local development)
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS && fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+  storageConfig.keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  console.log('🔑 Using GCS key file for authentication (local development)');
+} else {
+  console.log('🔐 Using default GCS authentication (Cloud Run environment)');
+}
+
+const storage = new Storage(storageConfig);
 
 const bucketName = process.env.GCS_BUCKET_NAME || 'ishantube-images-2025';
 const bucket = storage.bucket(bucketName);
