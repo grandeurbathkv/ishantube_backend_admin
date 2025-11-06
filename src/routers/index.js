@@ -12,6 +12,7 @@ import categoryRouter from '../moduls/Inventory/category.router.js';
 import colorRouter from '../moduls/Inventory/color.router.js';
 import seriesRouter from '../moduls/Inventory/series.router.js';
 import companyRouter from '../moduls/company/company.router.js';
+import quotationRouter from '../moduls/Inventory/quotation.router.js';
 
 const router = express.Router();
 
@@ -28,6 +29,7 @@ router.use('/category', categoryRouter);
 router.use('/', colorRouter);
 router.use('/', seriesRouter);
 router.use('/company', companyRouter);
+router.use('/quotation', quotationRouter);
 
 
 export default router;
