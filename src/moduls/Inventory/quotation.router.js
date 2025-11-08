@@ -16,6 +16,12 @@ router.get('/stats', protect, quotationController.getQuotationStats);
 // Get quotation by ID
 router.get('/:id', protect, quotationController.getQuotationById);
 
+// Download quotation as PDF
+router.get('/:id/pdf', protect, quotationController.downloadQuotationPDF);
+
+// Send quotation via email
+router.post('/:id/send', protect, quotationController.sendQuotation);
+
 // Update quotation
 router.put('/:id', protect, quotationController.updateQuotation);
 

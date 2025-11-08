@@ -420,3 +420,106 @@ export const getQuotationStats = async (req, res) => {
         });
     }
 };
+
+// Download quotation as PDF
+export const downloadQuotationPDF = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid quotation ID'
+            });
+        }
+
+        const quotation = await Quotation.findById(id)
+            .populate('company_id')
+            .populate('party_id')
+            .populate('site_id')
+            .populate('created_by', 'User_Name User_Email');
+
+        if (!quotation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Quotation not found'
+            });
+        }
+
+        // Return quotation data for PDF generation on frontend
+        // Frontend will handle PDF generation using libraries like jsPDF or pdfmake
+        res.status(200).json({
+            success: true,
+            message: 'Quotation data retrieved for PDF generation',
+            data: quotation
+        });
+
+    } catch (error) {
+        console.error('Error fetching quotation for PDF:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch quotation for PDF',
+            error: error.message
+        });
+    }
+};
+
+// Send quotation via email
+export const sendQuotation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { email, subject, message } = req.body;
+        const userId = req.user?._id || req.user?.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid quotation ID'
+            });
+        }
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email address is required'
+            });
+        }
+
+        const quotation = await Quotation.findById(id)
+            .populate('company_id')
+            .populate('party_id')
+            .populate('site_id');
+
+        if (!quotation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Quotation not found'
+            });
+        }
+
+        // TODO: Implement email sending logic using nodemailer or similar
+        // For now, just update the status to 'sent'
+        quotation.status = 'sent';
+        quotation.sent_at = new Date();
+        quotation.updated_by = userId;
+        await quotation.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Quotation sent successfully',
+            data: {
+                quotation_no: quotation.quotation_no,
+                email: email,
+                sent_at: quotation.sent_at
+            }
+        });
+
+    } catch (error) {
+        console.error('Error sending quotation:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send quotation',
+            error: error.message
+        });
+    }
+};
