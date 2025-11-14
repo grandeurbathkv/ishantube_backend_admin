@@ -10,6 +10,9 @@ router.post('/', protect, quotationController.createQuotation);
 // Get all quotations with filters and pagination
 router.get('/', protect, quotationController.getAllQuotations);
 
+// Get filtered quotations by company, party, and site
+router.get('/filter', protect, quotationController.getFilteredQuotations);
+
 // Get quotation statistics
 router.get('/stats', protect, quotationController.getQuotationStats);
 

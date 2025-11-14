@@ -523,3 +523,101 @@ export const sendQuotation = async (req, res) => {
         });
     }
 };
+
+// Get filtered quotations by company, party, and site
+export const getFilteredQuotations = async (req, res) => {
+    try {
+        const { company_id, party_id, site_id } = req.query;
+
+        console.log('Filter Request:', { company_id, party_id, site_id });
+
+        // Build filter query
+        const filter = {};
+
+        // Validate and add company_id to filter
+        if (!company_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Company ID is required'
+            });
+        }
+        
+        // Check if company_id is valid ObjectId, otherwise search by name
+        if (mongoose.Types.ObjectId.isValid(company_id)) {
+            filter.company_id = company_id;
+        } else {
+            filter.company_name = { $regex: company_id, $options: 'i' };
+        }
+
+        // Add party_id to filter if provided
+        if (party_id) {
+            // Party_id might be string like "PTY001" or ObjectId
+            // First try to find party by Party_id string field
+            const Party = mongoose.model('Party');
+            const party = await Party.findOne({ Party_id: party_id });
+            
+            if (party) {
+                filter.party_id = party._id;
+                console.log('Found party by Party_id:', party_id, '-> ObjectId:', party._id);
+            } else if (mongoose.Types.ObjectId.isValid(party_id)) {
+                filter.party_id = party_id;
+                console.log('Using party ObjectId directly:', party_id);
+            } else {
+                console.log('Party not found for:', party_id);
+            }
+        }
+
+        // Add site_id to filter if provided
+        if (site_id) {
+            // Site_id might be string like "SITE001" or ObjectId
+            const Site = mongoose.model('Site');
+            const site = await Site.findOne({ Site_id: site_id });
+            
+            if (site) {
+                filter.site_id = site._id;
+                console.log('Found site by Site_id:', site_id, '-> ObjectId:', site._id);
+            } else if (mongoose.Types.ObjectId.isValid(site_id)) {
+                filter.site_id = site_id;
+                console.log('Using site ObjectId directly:', site_id);
+            } else {
+                console.log('Site not found for:', site_id);
+            }
+        }
+
+        console.log('Final filter:', filter);
+
+        // Only fetch non-expired and accepted/sent quotations
+        filter.status = { $in: ['sent', 'accepted', 'draft'] }; // Added draft for testing
+        filter.valid_until = { $gte: new Date() };
+
+        // Execute query with population
+        const quotations = await Quotation.find(filter)
+            .populate('company_id', 'Company_Name Company_Short_Code Company_Address Company_Gst_No')
+            .populate('party_id', 'Party_Billing_Name Party_id Contact_Person Mobile_Number Party_Address')
+            .populate('site_id', 'Site_Billing_Name Site_id Contact_Person Mobile_Number Site_Address')
+            .populate('created_by', 'User_Name User_Email')
+            .sort({ quotation_date: -1 });
+
+        console.log('Found quotations:', quotations.length);
+
+        res.status(200).json({
+            success: true,
+            message: 'Filtered quotations retrieved successfully',
+            data: quotations,
+            count: quotations.length,
+            filters: {
+                company_id,
+                party_id: party_id || 'all',
+                site_id: site_id || 'all'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching filtered quotations:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch filtered quotations',
+            error: error.message
+        });
+    }
+};
