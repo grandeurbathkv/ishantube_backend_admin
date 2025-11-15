@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
-const quotationItemSchema = new mongoose.Schema({
+// Order Item Schema - similar to quotation items
+const orderItemSchema = new mongoose.Schema({
     product_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product',
@@ -54,16 +55,11 @@ const quotationItemSchema = new mongoose.Schema({
     gst_paid: {
         type: Boolean,
         default: false
-    },
-    minimum_sale: Number,
-    maximum_sale: Number,
-    schema_enabled: {
-        type: Boolean,
-        default: false
     }
 });
 
-const quotationGroupSchema = new mongoose.Schema({
+// Order Group Schema
+const orderGroupSchema = new mongoose.Schema({
     group_id: {
         type: String,
         required: true
@@ -77,7 +73,7 @@ const quotationGroupSchema = new mongoose.Schema({
         enum: ['Master Bathroom', 'Guest Bathroom', 'Kitchen Faucet', 'Living Room', 'Bedroom', 'Other'],
         default: 'Other'
     },
-    items: [quotationItemSchema],
+    items: [orderItemSchema],
     subtotal: {
         type: Number,
         default: 0
@@ -92,29 +88,26 @@ const quotationGroupSchema = new mongoose.Schema({
     }
 });
 
-const quotationSchema = new mongoose.Schema({
-    quotation_no: {
+// Main Order Schema
+const orderSchema = new mongoose.Schema({
+    order_no: {
         type: String,
-        required: true,
         unique: true
     },
-    quotation_date: {
+    order_date: {
         type: Date,
         default: Date.now
     },
-    valid_until: {
-        type: Date,
-        default: function() {
-            const date = new Date();
-            date.setDate(date.getDate() + 30);
-            return date;
-        }
+    expected_delivery_date: {
+        type: Date
     },
-    status: {
-        type: String,
-        enum: ['draft', 'sent', 'accepted', 'rejected', 'expired'],
-        default: 'draft'
+    
+    // Reference to Quotation
+    quotation_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Quotation'
     },
+    quotation_no: String,
     
     // Company Information
     company_id: {
@@ -125,7 +118,6 @@ const quotationSchema = new mongoose.Schema({
     company_name: String,
     company_address: String,
     company_gst: String,
-    company_contact: String,
     
     // Party Information
     party_id: {
@@ -156,8 +148,8 @@ const quotationSchema = new mongoose.Schema({
     site_contact_person: String,
     site_mobile: String,
     
-    // Groups and Items
-    groups: [quotationGroupSchema],
+    // Order Items
+    groups: [orderGroupSchema],
     
     // Financial Details
     grand_total: {
@@ -186,13 +178,7 @@ const quotationSchema = new mongoose.Schema({
         required: true,
         default: 0
     },
-    
-    // Additional Charges/Discounts
     additional_discount: {
-        type: Number,
-        default: 0
-    },
-    coupon_discount: {
         type: Number,
         default: 0
     },
@@ -201,21 +187,38 @@ const quotationSchema = new mongoose.Schema({
         default: 0
     },
     
-    // Terms and Conditions
-    payment_terms: {
+    // Order Status
+    status: {
         type: String,
-        default: '30 days from invoice date'
+        enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+        default: 'pending'
     },
-    delivery_terms: {
+    
+    // Payment Information
+    payment_status: {
         type: String,
-        default: '7-10 working days from order confirmation'
+        enum: ['pending', 'partial', 'paid', 'refunded'],
+        default: 'pending'
     },
+    payment_method: {
+        type: String,
+        enum: ['cash', 'card', 'upi', 'netbanking', 'cheque', 'other'],
+        default: 'cash'
+    },
+    amount_paid: {
+        type: Number,
+        default: 0
+    },
+    balance_amount: {
+        type: Number,
+        default: 0
+    },
+    
+    // Notes and Instructions
     notes: String,
+    internal_notes: String,
     
-    // Order Reference
-    order_id: String,
-    
-    // User tracking
+    // Tracking
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -226,58 +229,28 @@ const quotationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
-    
-    // Quotation sent details
-    sent_at: Date,
-    sent_via: {
-        type: String,
-        enum: ['email', 'whatsapp', 'print', 'manual'],
-    },
-    
-    // Response tracking
-    responded_at: Date,
-    response_notes: String
+    updated_by_name: String
 }, {
     timestamps: true
 });
 
-// Generate unique quotation number
-quotationSchema.pre('save', async function(next) {
-    if (!this.quotation_no) {
-        const prefix = 'QS';
-        const timestamp = Date.now().toString().slice(-6);
-        const year = String(new Date().getFullYear()).slice(-2);
-        this.quotation_no = `${prefix}-${timestamp}/${year}`;
+// Index for faster queries
+orderSchema.index({ order_no: 1 });
+orderSchema.index({ order_date: -1 });
+orderSchema.index({ company_id: 1, party_id: 1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ payment_status: 1 });
+
+// Auto-generate order number
+orderSchema.pre('save', async function(next) {
+    if (!this.order_no) {
+        const count = await mongoose.model('Order').countDocuments();
+        const orderNumber = `ORD${String(count + 1).padStart(6, '0')}`;
+        this.order_no = orderNumber;
     }
     next();
 });
 
-// Virtual for total items count
-quotationSchema.virtual('total_items').get(function() {
-    if (!this.groups || !Array.isArray(this.groups)) return 0;
-    return this.groups.reduce((total, group) => total + (group.items?.length || 0), 0);
-});
+const Order = mongoose.model('Order', orderSchema);
 
-// Virtual for total quantity
-quotationSchema.virtual('total_quantity').get(function() {
-    if (!this.groups || !Array.isArray(this.groups)) return 0;
-    return this.groups.reduce((total, group) => {
-        return total + (group.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0);
-    }, 0);
-});
-
-// Ensure virtuals are included in JSON output
-quotationSchema.set('toJSON', { virtuals: true });
-quotationSchema.set('toObject', { virtuals: true });
-
-// Indexes for better query performance
-quotationSchema.index({ quotation_no: 1 });
-quotationSchema.index({ quotation_date: -1 });
-quotationSchema.index({ party_id: 1 });
-quotationSchema.index({ company_id: 1 });
-quotationSchema.index({ status: 1 });
-quotationSchema.index({ created_by: 1 });
-
-const Quotation = mongoose.model('Quotation', quotationSchema);
-
-export default Quotation;
+export default Order;
