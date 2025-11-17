@@ -25,6 +25,9 @@ router.put('/:id', orderController.updateOrder);
 // Update order status only
 router.patch('/:id/status', orderController.updateOrderStatus);
 
+// Update payment status
+router.patch('/:id/payment', orderController.updatePaymentStatus);
+
 // Delete order
 router.delete('/:id', orderController.deleteOrder);
 

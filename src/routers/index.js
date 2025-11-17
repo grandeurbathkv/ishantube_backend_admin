@@ -14,6 +14,7 @@ import seriesRouter from '../moduls/Inventory/series.router.js';
 import companyRouter from '../moduls/company/company.router.js';
 import quotationRouter from '../moduls/Inventory/quotation.router.js';
 import orderRouter from '../moduls/Inventory/order.router.js';
+import dispatchRouter from '../moduls/Inventory/dispatch.router.js';
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use('/', seriesRouter);
 router.use('/company', companyRouter);
 router.use('/quotation', quotationRouter);
 router.use('/order', orderRouter);
+router.use('/dispatch', dispatchRouter);
 
 
 export default router;

@@ -290,6 +290,14 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
+        const validStatuses = ['pending', 'partially pending', 'completed', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+            });
+        }
+
         const order = await Order.findByIdAndUpdate(
             id,
             { 
@@ -318,6 +326,64 @@ export const updateOrderStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to update order status',
+            error: error.message
+        });
+    }
+};
+
+// Update payment status
+export const updatePaymentStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { payment_status, amount_paid, payment_method } = req.body;
+
+        if (!payment_status) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment status is required'
+            });
+        }
+
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const updateData = {
+            payment_status,
+            updated_by: req.user?._id || req.user?.id,
+            updated_by_name: req.user?.User_Name || 'Unknown User'
+        };
+
+        if (amount_paid !== undefined) {
+            updateData.amount_paid = amount_paid;
+            updateData.balance_amount = order.net_amount_payable - amount_paid;
+        }
+
+        if (payment_method) {
+            updateData.payment_method = payment_method;
+        }
+
+        const updatedOrder = await Order.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Payment status updated successfully',
+            data: updatedOrder
+        });
+
+    } catch (error) {
+        console.error('Error updating payment status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update payment status',
             error: error.message
         });
     }
