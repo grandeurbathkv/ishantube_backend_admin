@@ -28,6 +28,9 @@ router.patch('/:id/status', orderController.updateOrderStatus);
 // Update payment status
 router.patch('/:id/payment', orderController.updatePaymentStatus);
 
+// Cancel order
+router.patch('/:id/cancel', orderController.cancelOrder);
+
 // Delete order
 router.delete('/:id', orderController.deleteOrder);
 

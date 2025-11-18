@@ -180,7 +180,7 @@ export const getQuotationById = async (req, res) => {
 
         const quotation = await Quotation.findById(id)
             .populate('company_id')
-            .populate('party_id')
+            .populate('party_id', 'Party_Billing_Name Party_id Party_Gstno Party_Address Party_city Party_State Contact_Person Mobile_Number Email_id')
             .populate('site_id')
             .populate('created_by', 'User_Name User_Email')
             .populate('updated_by', 'User_Name User_Email');
@@ -190,6 +190,11 @@ export const getQuotationById = async (req, res) => {
                 success: false,
                 message: 'Quotation not found'
             });
+        }
+
+        // Ensure party_gst is included in response
+        if (quotation.party_id && quotation.party_id.Party_Gstno && !quotation.party_gst) {
+            quotation.party_gst = quotation.party_id.Party_Gstno;
         }
 
         res.status(200).json({

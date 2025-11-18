@@ -460,3 +460,67 @@ export const getOrderStats = async (req, res) => {
         });
     }
 };
+
+// Cancel order
+export const cancelOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user?._id || req.user?.id;
+        const userName = req.user?.User_Name || 'Unknown User';
+        const { cancellation_reason } = req.body;
+
+        const order = await Order.findById(id);
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Check if order is already cancelled
+        if (order.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Order is already cancelled'
+            });
+        }
+
+        // Check if order can be cancelled
+        if (order.status === 'delivered') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot cancel a delivered order'
+            });
+        }
+
+        // Update order status to cancelled
+        const updatedOrder = await Order.findByIdAndUpdate(
+            id,
+            {
+                status: 'cancelled',
+                cancellation_reason: cancellation_reason || 'No reason provided',
+                cancelled_by: userId,
+                cancelled_by_name: userName,
+                cancelled_at: new Date(),
+                updated_by: userId,
+                updated_by_name: userName
+            },
+            { new: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Order cancelled successfully',
+            data: updatedOrder
+        });
+
+    } catch (error) {
+        console.error('Error cancelling order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to cancel order',
+            error: error.message
+        });
+    }
+};

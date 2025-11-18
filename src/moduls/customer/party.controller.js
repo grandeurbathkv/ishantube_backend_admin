@@ -65,6 +65,27 @@ const manageParties = async (req, res) => {
           created_by: userId
         });
 
+        // Auto-create default site for the party
+        try {
+          const defaultSite = await Site.create({
+            Site_id: `${Party_id}-SITE01`,
+            Site_Billing_Name: `${Party_Billing_Name} - Default Site`,
+            Contact_Person: Contact_Person,
+            Mobile_Number: Mobile_Number,
+            Other_Numbers: Other_Numbers || '',
+            Email_id: Email_id || '',
+            Site_Address: Party_Address,
+            Site_city: Party_city,
+            Site_State: Party_State,
+            Site_party_id: Party_id,
+            created_by: userId
+          });
+          console.log('Default site created:', defaultSite.Site_id);
+        } catch (siteError) {
+          console.error('Error creating default site:', siteError);
+          // Continue even if site creation fails
+        }
+
         // Populate reference details for response
         const populatedParty = await Party.findById(newParty._id)
           .populate('Party_default_User_id', 'name email')
@@ -73,7 +94,7 @@ const manageParties = async (req, res) => {
 
         return res.status(201).json({
           success: true,
-          message: 'Party created successfully',
+          message: 'Party and default site created successfully',
           data: populatedParty
         });
 
