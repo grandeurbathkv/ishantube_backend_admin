@@ -1,5 +1,6 @@
 import Order from './order.model.js';
 import mongoose from 'mongoose';
+import { Product } from '../Inventory/product.model.js';
 
 // Create a new order
 export const createOrder = async (req, res) => {
@@ -204,10 +205,63 @@ export const getOrderById = async (req, res) => {
             });
         }
 
+        // Calculate inventory availability for each item
+        const orderWithInventory = order.toObject();
+        
+        for (let groupIndex = 0; groupIndex < orderWithInventory.groups.length; groupIndex++) {
+            const group = orderWithInventory.groups[groupIndex];
+            
+            for (let itemIndex = 0; itemIndex < group.items.length; itemIndex++) {
+                const item = group.items[itemIndex];
+                
+                try {
+                    // Get product from inventory
+                    const product = await Product.findById(item.product_id);
+                    
+                    if (product) {
+                        // Calculate available stock (Fresh Stock + Opening Stock - Damage Stock - Sample Stock - Showroom Stock)
+                        const totalAvailableStock = 
+                            (product.Product_Fresh_Stock || 0) + 
+                            (product.Product_opening_stock || 0) - 
+                            (product.Product_Damage_stock || 0) - 
+                            (product.Product_sample_stock || 0) - 
+                            (product.Prod_Showroom_stock || 0);
+                        
+                        // Update item with inventory data
+                        item.available_quantity = Math.max(0, totalAvailableStock);
+                        item.dispatched_quantity = item.dispatched_quantity || 0;
+                        item.balance_quantity = item.quantity - item.dispatched_quantity;
+                        
+                        // Determine availability status
+                        if (item.available_quantity >= item.balance_quantity) {
+                            item.availability_status = 'available';
+                        } else if (item.available_quantity > 0) {
+                            item.availability_status = 'partial';
+                        } else {
+                            item.availability_status = 'non-available';
+                        }
+                    } else {
+                        // Product not found in inventory
+                        item.available_quantity = 0;
+                        item.dispatched_quantity = item.dispatched_quantity || 0;
+                        item.balance_quantity = item.quantity - item.dispatched_quantity;
+                        item.availability_status = 'non-available';
+                    }
+                } catch (productError) {
+                    console.error(`Error fetching product ${item.product_id}:`, productError);
+                    // Set default values on error
+                    item.available_quantity = 0;
+                    item.dispatched_quantity = item.dispatched_quantity || 0;
+                    item.balance_quantity = item.quantity - item.dispatched_quantity;
+                    item.availability_status = 'non-available';
+                }
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Order retrieved successfully',
-            data: order
+            data: orderWithInventory
         });
 
     } catch (error) {

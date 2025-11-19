@@ -55,6 +55,27 @@ const orderItemSchema = new mongoose.Schema({
     gst_paid: {
         type: Boolean,
         default: false
+    },
+    // Inventory tracking fields
+    dispatched_quantity: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    balance_quantity: {
+        type: Number,
+        default: function() {
+            return this.quantity;
+        }
+    },
+    available_quantity: {
+        type: Number,
+        default: 0
+    },
+    availability_status: {
+        type: String,
+        enum: ['available', 'partial', 'non-available'],
+        default: 'non-available'
     }
 });
 
