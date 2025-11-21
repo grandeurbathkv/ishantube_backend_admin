@@ -15,6 +15,7 @@ import companyRouter from '../moduls/company/company.router.js';
 import quotationRouter from '../moduls/Inventory/quotation.router.js';
 import orderRouter from '../moduls/Inventory/order.router.js';
 import dispatchRouter from '../moduls/Inventory/dispatch.router.js';
+import paymentReceiptRouter from '../moduls/Inventory/paymentReceipt.router.js';
 
 const router = express.Router();
 
@@ -34,6 +35,7 @@ router.use('/company', companyRouter);
 router.use('/quotation', quotationRouter);
 router.use('/order', orderRouter);
 router.use('/dispatch', dispatchRouter);
+router.use('/payment-receipt', paymentReceiptRouter);
 
 
 export default router;

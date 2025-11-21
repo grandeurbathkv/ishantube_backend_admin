@@ -46,7 +46,11 @@ export const createOrder = async (req, res) => {
         const order = new Order(orderData);
         await order.save();
 
-        console.log('Order created successfully:', order.order_no);
+        console.log('✅ Order created successfully:', order.order_no);
+        console.log('📋 Order payment_status:', order.payment_status);
+        console.log('💰 Order balance_amount:', order.balance_amount);
+        console.log('🏢 Order company_id:', order.company_id);
+        console.log('👥 Order party_id:', order.party_id);
 
         res.status(201).json({
             success: true,
@@ -98,7 +102,10 @@ export const getAllOrders = async (req, res) => {
         }
 
         if (payment_status) {
-            filter.payment_status = payment_status;
+            // Handle comma-separated payment statuses
+            const statusArray = payment_status.split(',').map(s => s.trim());
+            filter.payment_status = { $in: statusArray };
+            console.log('Payment status filter:', filter.payment_status);
         }
 
         if (party_id) {
@@ -139,6 +146,9 @@ export const getAllOrders = async (req, res) => {
         const sortOrder = sort_order === 'asc' ? 1 : -1;
         const sortObj = { [sort_by]: sortOrder };
 
+        console.log('📊 Final filter object:', JSON.stringify(filter, null, 2));
+        console.log('📄 Pagination:', { page, limit, skip });
+
         // Execute query
         const orders = await Order.find(filter)
             .populate('company_id', 'Company_Name Company_Short_Code')
@@ -152,7 +162,7 @@ export const getAllOrders = async (req, res) => {
         // Get total count
         const total = await Order.countDocuments(filter);
 
-        console.log(`Found ${orders.length} orders out of ${total} total`);
+        console.log(`✅ Found ${orders.length} orders out of ${total} total`);
 
         res.status(200).json({
             success: true,
@@ -229,11 +239,15 @@ export const getOrderById = async (req, res) => {
                         
                         // Update item with inventory data
                         item.available_quantity = Math.max(0, totalAvailableStock);
+                        item.soliditate_quantity = product.Prod_Showroom_stock || 0;
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         
                         // Determine availability status
-                        if (item.available_quantity >= item.balance_quantity) {
+                        // If soliditate_quantity > available_quantity, status is partial
+                        if (item.soliditate_quantity > item.available_quantity) {
+                            item.availability_status = 'partial';
+                        } else if (item.available_quantity >= item.balance_quantity) {
                             item.availability_status = 'available';
                         } else if (item.available_quantity > 0) {
                             item.availability_status = 'partial';
@@ -243,6 +257,7 @@ export const getOrderById = async (req, res) => {
                     } else {
                         // Product not found in inventory
                         item.available_quantity = 0;
+                        item.soliditate_quantity = 0;
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         item.availability_status = 'non-available';
@@ -251,6 +266,7 @@ export const getOrderById = async (req, res) => {
                     console.error(`Error fetching product ${item.product_id}:`, productError);
                     // Set default values on error
                     item.available_quantity = 0;
+                    item.soliditate_quantity = 0;
                     item.dispatched_quantity = item.dispatched_quantity || 0;
                     item.balance_quantity = item.quantity - item.dispatched_quantity;
                     item.availability_status = 'non-available';

@@ -72,6 +72,10 @@ const orderItemSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    soliditate_quantity: {
+        type: Number,
+        default: 0
+    },
     availability_status: {
         type: String,
         enum: ['available', 'partial', 'non-available'],

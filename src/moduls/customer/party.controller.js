@@ -624,16 +624,23 @@ const getAllPartiesDropdown = async (req, res) => {
       ];
     }
 
+    console.log('🔍 Fetching parties with filter:', filter);
+
     const parties = await Party.find(filter)
       .select('Party_id Party_Billing_Name')
       .sort({ Party_id: 1 })
       .limit(parseInt(limit));
 
+    console.log('📋 Found parties count:', parties.length);
+
     const dropdownData = parties.map(party => ({
-      id: party.Party_id,
+      id: party._id.toString(),
+      party_id: party.Party_id,
       name: party.Party_Billing_Name,
       label: `${party.Party_id} - ${party.Party_Billing_Name}`
     }));
+
+    console.log('✅ Dropdown data created:', dropdownData.length);
 
     return res.status(200).json({
       success: true,
