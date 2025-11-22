@@ -257,6 +257,11 @@ export const getOrderById = async (req, res) => {
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         
+                        // Stock breakdown by type
+                        item.fresh_stock = product.Product_Fresh_Stock || 0;
+                        item.raf_stock = product.Prod_Showroom_stock || 0;
+                        item.trim_stock = product.Product_sample_stock || 0;
+                        
                         // Determine availability status based on consolidated quantity vs available quantity
                         // Logic: If consolidated_quantity > available_quantity, status is 'partial'
                         if (item.consolidated_quantity > item.available_quantity) {
@@ -275,6 +280,9 @@ export const getOrderById = async (req, res) => {
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         item.availability_status = 'non-available';
+                        item.fresh_stock = 0;
+                        item.raf_stock = 0;
+                        item.trim_stock = 0;
                     }
                 } catch (productError) {
                     console.error(`Error fetching product ${item.product_id}:`, productError);
@@ -284,6 +292,9 @@ export const getOrderById = async (req, res) => {
                     item.dispatched_quantity = item.dispatched_quantity || 0;
                     item.balance_quantity = item.quantity - item.dispatched_quantity;
                     item.availability_status = 'non-available';
+                    item.fresh_stock = 0;
+                    item.raf_stock = 0;
+                    item.trim_stock = 0;
                 }
             }
         }

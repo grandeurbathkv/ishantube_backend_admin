@@ -80,6 +80,19 @@ const orderItemSchema = new mongoose.Schema({
         type: String,
         enum: ['available', 'partial', 'non-available'],
         default: 'non-available'
+    },
+    // Stock breakdown by type
+    fresh_stock: {
+        type: Number,
+        default: 0
+    },
+    raf_stock: {
+        type: Number,
+        default: 0
+    },
+    trim_stock: {
+        type: Number,
+        default: 0
     }
 });
 

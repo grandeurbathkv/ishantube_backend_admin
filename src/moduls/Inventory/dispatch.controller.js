@@ -55,6 +55,29 @@ export const createDispatch = async (req, res) => {
 
         console.log('Dispatch created:', dispatch.dispatch_no);
 
+        // Update order items with dispatched quantities
+        for (const dispatchItem of req.body.items) {
+            // Find the item in order and update dispatched quantity
+            for (const group of order.groups) {
+                const orderItem = group.items.find(item => 
+                    item.product_id.toString() === dispatchItem.product_id.toString()
+                );
+                
+                if (orderItem) {
+                    // Increment dispatched quantity
+                    orderItem.dispatched_quantity = (orderItem.dispatched_quantity || 0) + (dispatchItem.quantity || 0);
+                    // Update balance quantity
+                    orderItem.balance_quantity = orderItem.quantity - orderItem.dispatched_quantity;
+                    console.log(`Updated item ${orderItem.product_code}: dispatched=${orderItem.dispatched_quantity}, balance=${orderItem.balance_quantity}`);
+                    break; // Found the item, no need to search further
+                }
+            }
+        }
+
+        // Save updated order
+        await order.save();
+        console.log('Order updated with dispatched quantities');
+
         res.status(201).json({
             success: true,
             message: 'Dispatch note created successfully',
