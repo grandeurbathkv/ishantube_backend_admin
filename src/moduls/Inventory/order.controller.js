@@ -218,6 +218,20 @@ export const getOrderById = async (req, res) => {
         // Calculate inventory availability for each item
         const orderWithInventory = order.toObject();
         
+        // First, calculate consolidated quantities for each product code
+        const consolidatedQuantities = {};
+        for (const group of orderWithInventory.groups) {
+            for (const item of group.items) {
+                const productCode = item.product_code;
+                if (!consolidatedQuantities[productCode]) {
+                    consolidatedQuantities[productCode] = 0;
+                }
+                // Sum up balance quantities for same product across all groups
+                const balanceQty = item.balance_quantity || (item.quantity - (item.dispatched_quantity || 0));
+                consolidatedQuantities[productCode] += balanceQty;
+            }
+        }
+        
         for (let groupIndex = 0; groupIndex < orderWithInventory.groups.length; groupIndex++) {
             const group = orderWithInventory.groups[groupIndex];
             
@@ -239,13 +253,13 @@ export const getOrderById = async (req, res) => {
                         
                         // Update item with inventory data
                         item.available_quantity = Math.max(0, totalAvailableStock);
-                        item.soliditate_quantity = product.Prod_Showroom_stock || 0;
+                        item.consolidated_quantity = consolidatedQuantities[item.product_code] || 0;
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         
-                        // Determine availability status
-                        // If soliditate_quantity > available_quantity, status is partial
-                        if (item.soliditate_quantity > item.available_quantity) {
+                        // Determine availability status based on consolidated quantity vs available quantity
+                        // Logic: If consolidated_quantity > available_quantity, status is 'partial'
+                        if (item.consolidated_quantity > item.available_quantity) {
                             item.availability_status = 'partial';
                         } else if (item.available_quantity >= item.balance_quantity) {
                             item.availability_status = 'available';
@@ -257,7 +271,7 @@ export const getOrderById = async (req, res) => {
                     } else {
                         // Product not found in inventory
                         item.available_quantity = 0;
-                        item.soliditate_quantity = 0;
+                        item.consolidated_quantity = consolidatedQuantities[item.product_code] || 0;
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         item.availability_status = 'non-available';
@@ -266,7 +280,7 @@ export const getOrderById = async (req, res) => {
                     console.error(`Error fetching product ${item.product_id}:`, productError);
                     // Set default values on error
                     item.available_quantity = 0;
-                    item.soliditate_quantity = 0;
+                    item.consolidated_quantity = consolidatedQuantities[item.product_code] || 0;
                     item.dispatched_quantity = item.dispatched_quantity || 0;
                     item.balance_quantity = item.quantity - item.dispatched_quantity;
                     item.availability_status = 'non-available';

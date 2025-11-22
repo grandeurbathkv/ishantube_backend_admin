@@ -72,7 +72,7 @@ const orderItemSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    soliditate_quantity: {
+    consolidated_quantity: {
         type: Number,
         default: 0
     },
