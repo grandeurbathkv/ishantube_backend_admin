@@ -243,13 +243,12 @@ export const getOrderById = async (req, res) => {
                     const product = await Product.findById(item.product_id);
                     
                     if (product) {
-                        // Calculate available stock (Fresh Stock + Opening Stock - Damage Stock - Sample Stock - Showroom Stock)
+                        // Calculate available stock (Fresh Stock + Opening Stock - Damage Stock)
+                        // Sample stock is NOT deducted as it's tracked separately
                         const totalAvailableStock = 
                             (product.Product_Fresh_Stock || 0) + 
                             (product.Product_opening_stock || 0) - 
-                            (product.Product_Damage_stock || 0) - 
-                            (product.Product_sample_stock || 0) - 
-                            (product.Prod_Showroom_stock || 0);
+                            (product.Product_Damage_stock || 0);
                         
                         // Update item with inventory data
                         item.available_quantity = Math.max(0, totalAvailableStock);
@@ -257,10 +256,19 @@ export const getOrderById = async (req, res) => {
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         
+                        // Add product type for filtering
+                        item.product_type = product.Product_Type; // 'Rough' or 'Trim'
+                        
                         // Stock breakdown by type
                         item.fresh_stock = product.Product_Fresh_Stock || 0;
-                        item.raf_stock = product.Prod_Showroom_stock || 0;
-                        item.trim_stock = product.Product_sample_stock || 0;
+                        item.sample_stock = product.Product_sample_stock || 0;
+                        item.raf_stock = product.Prod_Showroom_stock || 0; // RAF = Showroom stock
+                        item.trim_stock = 0; // Will be set based on product type below
+                        
+                        // Set trim_stock only for products with Product_Type = 'Trim'
+                        if (product.Product_Type === 'Trim') {
+                            item.trim_stock = product.Product_Fresh_Stock || 0;
+                        }
                         
                         // Determine availability status based on consolidated quantity vs available quantity
                         // Logic: If consolidated_quantity > available_quantity, status is 'partial'
@@ -280,7 +288,9 @@ export const getOrderById = async (req, res) => {
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
                         item.availability_status = 'non-available';
+                        item.product_type = null;
                         item.fresh_stock = 0;
+                        item.sample_stock = 0;
                         item.raf_stock = 0;
                         item.trim_stock = 0;
                     }
@@ -292,7 +302,9 @@ export const getOrderById = async (req, res) => {
                     item.dispatched_quantity = item.dispatched_quantity || 0;
                     item.balance_quantity = item.quantity - item.dispatched_quantity;
                     item.availability_status = 'non-available';
+                    item.product_type = null;
                     item.fresh_stock = 0;
+                    item.sample_stock = 0;
                     item.raf_stock = 0;
                     item.trim_stock = 0;
                 }
