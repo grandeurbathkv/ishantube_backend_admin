@@ -310,3 +310,26 @@ export const deleteFileFromGCS = async (filename) => {
 
 // Export the uploadToGCS function for direct use if needed
 export { uploadToGCS };
+
+// Middleware for Chat Attachment Upload (generic files/images)
+export const uploadChatAttachment = [
+  multer({
+    storage: multerMemoryStorage,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    }
+  }).single('attachment'),
+  async (req, res, next) => {
+    try {
+      if (req.file) {
+        const uploadResult = await uploadToGCS(req.file, 'chat-attachments');
+        req.body.attachment = uploadResult.url;
+        req.body.attachmentPath = uploadResult.filename;
+        req.uploadedFile = uploadResult;
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }
+];

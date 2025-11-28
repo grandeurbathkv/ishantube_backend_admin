@@ -4,8 +4,9 @@ import bcrypt from 'bcryptjs';
 const userSchema = new mongoose.Schema({
   User_id: {
     type: String,
-    required: [true, 'User ID is required'],
+    required: false,  // Made optional since it's not always used
     unique: true,
+    sparse: true,  // Allows multiple null values
     trim: true,
   },
   Password: {

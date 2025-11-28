@@ -2,7 +2,7 @@
 import express from 'express';
 import { protect, superAdminAuth } from '../../middleware/user.middleware.js';
 import { uploadUserImage, handleUploadError, processUploadedFile } from '../../middleware/gcs.upload.middleware.js';
-import { registerUser, loginUser, logoutUser, getUserProfile, getUserDropdown } from './user.controller.js';
+import { registerUser, loginUser, logoutUser, getUserProfile, getUserDropdown, createTestUsers } from './user.controller.js';
 
 const router = express.Router();
 
@@ -483,4 +483,25 @@ router.post('/logout', protect, logoutUser);
  */
 router.get('/profile', protect, getUserProfile);
 
+/**
+ * @swagger
+ * /api/users/create-test-users:
+ *   post:
+ *     summary: Create test users for chat testing
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       201:
+ *         description: Test users created successfully
+ *       401:
+ *         description: Not authorized
+ *       500:
+ *         description: Server error
+ */
+router.post('/create-test-users', protect, superAdminAuth, createTestUsers);
+
+
+
 export default router;
+

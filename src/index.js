@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
@@ -6,6 +8,7 @@ import cors from 'cors';
 import connectDB from './config/db.js';
 import routes from './routers/index.js';
 import errorHandler from './middleware/errorhanddling.js';
+import { initializeSocketIO } from './socket.js';
 
 // Only load .env in development (not in production/Cloud Run)
 if (process.env.NODE_ENV !== 'production') {
@@ -29,6 +32,22 @@ console.log('==============================================');
 connectDB();
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+// Initialize Socket.IO handlers
+initializeSocketIO(io);
+
+// Make io accessible in routes
+app.set('io', io);
 
 app.use(cors({
   origin: "*",
@@ -104,7 +123,8 @@ app.use('/api', routes);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`📄 API docs available at http://localhost:${PORT}/api-docs`);
+  console.log(`🔌 Socket.IO server is running and ready for connections`);
 });

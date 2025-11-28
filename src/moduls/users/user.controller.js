@@ -156,3 +156,118 @@ export const getUserProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Create test users for chat testing
+// @route   POST /api/users/create-test-users
+// @access  Protected (Super Admin only)
+export const createTestUsers = async (req, res, next) => {
+  try {
+    const testUsers = [
+      {
+        'User Name': 'Rahul Sharma',
+        'Email id': 'rahul.sharma@gmail.com',
+        'Mobile Number': '9876543210',
+        Password: 'Test@123',
+        Role: 'Admin',
+        Image: 'https://i.pravatar.cc/150?img=11',
+        status: true
+      },
+      {
+        'User Name': 'Priya Singh',
+        'Email id': 'priya.singh@gmail.com',
+        'Mobile Number': '9876543211',
+        Password: 'Test@123',
+        Role: 'Marketing',
+        Image: 'https://i.pravatar.cc/150?img=47',
+        status: true
+      },
+      {
+        'User Name': 'Amit Kumar',
+        'Email id': 'amit.kumar@gmail.com',
+        'Mobile Number': '9876543212',
+        Password: 'Test@123',
+        Role: 'Store Head',
+        Image: 'https://i.pravatar.cc/150?img=12',
+        status: true
+      },
+      {
+        'User Name': 'Sneha Patel',
+        'Email id': 'sneha.patel@gmail.com',
+        'Mobile Number': '9876543213',
+        Password: 'Test@123',
+        Role: 'Dispatch head',
+        Image: 'https://i.pravatar.cc/150?img=48',
+        status: true
+      },
+      {
+        'User Name': 'Vikram Reddy',
+        'Email id': 'vikram.reddy@gmail.com',
+        'Mobile Number': '9876543214',
+        Password: 'Test@123',
+        Role: 'Transport Manager',
+        Image: 'https://i.pravatar.cc/150?img=13',
+        status: true
+      },
+      {
+        'User Name': 'Anjali Gupta',
+        'Email id': 'anjali.gupta@gmail.com',
+        'Mobile Number': '9876543215',
+        Password: 'Test@123',
+        Role: 'Accountant',
+        Image: 'https://i.pravatar.cc/150?img=49',
+        status: true
+      },
+      {
+        'User Name': 'Rajesh Verma',
+        'Email id': 'rajesh.verma@gmail.com',
+        'Mobile Number': '9876543216',
+        Password: 'Test@123',
+        Role: 'Document Manager',
+        Image: 'https://i.pravatar.cc/150?img=14',
+        status: true
+      },
+      {
+        'User Name': 'Neha Desai',
+        'Email id': 'neha.desai@gmail.com',
+        'Mobile Number': '9876543217',
+        Password: 'Test@123',
+        Role: 'Guest',
+        Image: 'https://i.pravatar.cc/150?img=50',
+        status: true
+      }
+    ];
+
+    const createdUsers = [];
+    const skippedUsers = [];
+
+    for (const userData of testUsers) {
+      const existingUser = await User.findOne({ 'Email id': userData['Email id'] });
+      
+      if (existingUser) {
+        skippedUsers.push(userData['Email id']);
+        continue;
+      }
+
+      const user = await User.create(userData);
+      createdUsers.push({
+        name: user['User Name'],
+        email: user['Email id'],
+        role: user.Role
+      });
+    }
+
+    const totalUsers = await User.countDocuments({});
+
+    res.status(201).json({
+      success: true,
+      message: 'Test users creation completed',
+      data: {
+        created: createdUsers,
+        skipped: skippedUsers,
+        totalUsersInDB: totalUsers
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
