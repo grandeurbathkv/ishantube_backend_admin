@@ -10,6 +10,9 @@ router.use(protect);
 // Order statistics
 router.get('/stats', orderController.getOrderStats);
 
+// Get pending orders by party
+router.get('/pending-by-party/:partyId', orderController.getPendingOrdersByParty);
+
 // Create new order
 router.post('/', orderController.createOrder);
 

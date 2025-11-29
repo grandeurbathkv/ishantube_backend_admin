@@ -256,6 +256,23 @@ const orderSchema = new mongoose.Schema({
     notes: String,
     internal_notes: String,
     
+    // Cancellation fields
+    cancellation_reason: String,
+    cancelled_by: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    cancelled_by_name: String,
+    cancelled_at: Date,
+    payment_adjustment_details: {
+        action: {
+            type: String,
+            enum: ['refund', 'forfeit', 'adjust']
+        },
+        amount: Number,
+        target_order_no: String
+    },
+    
     // Tracking
     created_by: {
         type: mongoose.Schema.Types.ObjectId,

@@ -574,19 +574,30 @@ export const cancelOrder = async (req, res) => {
         const { id } = req.params;
         const userId = req.user?._id || req.user?.id;
         const userName = req.user?.User_Name || 'Unknown User';
-        const { cancellation_reason } = req.body;
+        const { cancellation_reason, payment_adjustment } = req.body;
+
+        console.log('🔴 ===== ORDER CANCELLATION REQUEST =====');
+        console.log('📋 Order ID:', id);
+        console.log('👤 User:', userName);
+        console.log('📝 Reason:', cancellation_reason);
+        console.log('💰 Payment Adjustment:', payment_adjustment);
 
         const order = await Order.findById(id);
 
         if (!order) {
+            console.log('❌ Order not found');
             return res.status(404).json({
                 success: false,
                 message: 'Order not found'
             });
         }
 
+        console.log('📦 Order Found:', order.order_no);
+        console.log('📊 Current Status:', order.status);
+
         // Check if order is already cancelled
         if (order.status === 'cancelled') {
+            console.log('⚠️ Order already cancelled');
             return res.status(400).json({
                 success: false,
                 message: 'Order is already cancelled'
@@ -595,38 +606,246 @@ export const cancelOrder = async (req, res) => {
 
         // Check if order can be cancelled
         if (order.status === 'delivered') {
+            console.log('⚠️ Cannot cancel delivered order');
             return res.status(400).json({
                 success: false,
                 message: 'Cannot cancel a delivered order'
             });
         }
 
+        // CONDITION 1: Check if any items are dispatched
+        let totalOrderQty = 0;
+        let totalDispatchedQty = 0;
+        
+        order.groups.forEach(group => {
+            group.items.forEach(item => {
+                totalOrderQty += item.quantity;
+                totalDispatchedQty += (item.dispatched_quantity || 0);
+            });
+        });
+
+        console.log('📊 Total Order Quantity:', totalOrderQty);
+        console.log('🚚 Total Dispatched Quantity:', totalDispatchedQty);
+        console.log('⏳ Pending Quantity:', totalOrderQty - totalDispatchedQty);
+
+        const hasDispatchedItems = totalDispatchedQty > 0;
+        const isPartialCancellation = hasDispatchedItems;
+
+        // CONDITION 2: Check if payment is received or pending
+        const paymentReceived = order.amount_paid || 0;
+        const balancePayment = order.balance_amount || 0;
+        const hasPayment = paymentReceived > 0;
+
+        console.log('💵 Payment Received:', paymentReceived);
+        console.log('💳 Balance Payment:', balancePayment);
+        console.log('💰 Has Payment:', hasPayment);
+
+        // If payment exists, payment adjustment is required
+        if (hasPayment && !payment_adjustment) {
+            console.log('⚠️ Payment adjustment required but not provided');
+            return res.status(400).json({
+                success: false,
+                message: 'Payment adjustment is required for orders with received payments',
+                requiresPaymentAdjustment: true,
+                paymentAmount: paymentReceived
+            });
+        }
+
+        // Handle payment adjustment if provided
+        let paymentAdjustmentResult = null;
+        if (hasPayment && payment_adjustment) {
+            console.log('💰 Processing payment adjustment:', payment_adjustment.action);
+
+            if (payment_adjustment.action === 'adjust') {
+                // Validate adjust_to_order_id is provided
+                if (!payment_adjustment.adjust_to_order_id) {
+                    console.log('❌ Target order ID not provided for adjustment');
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Target order ID is required for payment adjustment'
+                    });
+                }
+
+                // Find target order
+                const targetOrder = await Order.findById(payment_adjustment.adjust_to_order_id);
+                if (!targetOrder) {
+                    console.log('❌ Target order not found');
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Target order for payment adjustment not found'
+                    });
+                }
+
+                console.log('🎯 Target Order:', targetOrder.order_no);
+                console.log('💰 Target Balance Before:', targetOrder.balance_amount);
+
+                // Adjust payment to target order
+                const adjustmentAmount = paymentReceived;
+                targetOrder.amount_paid = (targetOrder.amount_paid || 0) + adjustmentAmount;
+                targetOrder.balance_amount = Math.max(0, targetOrder.net_amount_payable - targetOrder.amount_paid);
+                
+                // Update payment status of target order
+                if (targetOrder.balance_amount === 0) {
+                    targetOrder.payment_status = 'paid';
+                } else if (targetOrder.amount_paid > 0) {
+                    targetOrder.payment_status = 'partial';
+                }
+
+                await targetOrder.save();
+                console.log('✅ Payment adjusted to target order');
+                console.log('💰 Target Balance After:', targetOrder.balance_amount);
+
+                paymentAdjustmentResult = {
+                    action: 'adjust',
+                    amount: adjustmentAmount,
+                    target_order_no: targetOrder.order_no
+                };
+            } else if (payment_adjustment.action === 'refund') {
+                console.log('💸 Payment marked for refund');
+                paymentAdjustmentResult = {
+                    action: 'refund',
+                    amount: paymentReceived
+                };
+            } else if (payment_adjustment.action === 'forfeit') {
+                console.log('💰 Payment forfeited');
+                paymentAdjustmentResult = {
+                    action: 'forfeit',
+                    amount: paymentReceived
+                };
+            }
+
+            // Reset payment in cancelled order
+            order.amount_paid = 0;
+            order.balance_amount = 0;
+            order.payment_status = 'refunded';
+        }
+
+        // Handle partial cancellation if items are dispatched
+        if (isPartialCancellation) {
+            console.log('⚠️ Partial cancellation - recalculating order values');
+
+            // Update balance quantities to 0 for all items (cancel pending items)
+            let newGrandTotal = 0;
+            let newGstAmount = 0;
+
+            order.groups.forEach(group => {
+                let groupTotal = 0;
+                group.items.forEach(item => {
+                    // Only keep dispatched items in calculation
+                    const dispatchedQty = item.dispatched_quantity || 0;
+                    
+                    if (dispatchedQty > 0) {
+                        // Recalculate based on dispatched quantity
+                        const itemTotal = dispatchedQty * item.net_rate;
+                        groupTotal += itemTotal;
+                        item.total_amount = itemTotal;
+                        item.quantity = dispatchedQty;
+                        item.balance_quantity = 0;
+                    } else {
+                        // No items dispatched, set to 0
+                        item.total_amount = 0;
+                        item.balance_quantity = 0;
+                    }
+                });
+                group.total_amount = groupTotal;
+                newGrandTotal += groupTotal;
+            });
+
+            // Recalculate GST
+            newGstAmount = (newGrandTotal * (order.gst_percentage || 18)) / 100;
+
+            // Update order totals
+            order.grand_total = newGrandTotal;
+            order.gst_amount = newGstAmount;
+            order.net_amount_payable = newGrandTotal + newGstAmount + (order.freight_charges || 0) - (order.additional_discount || 0);
+
+            console.log('📊 Recalculated Grand Total:', order.grand_total);
+            console.log('📊 Recalculated Net Amount:', order.net_amount_payable);
+        } else {
+            // Full cancellation - set all quantities and amounts to 0
+            console.log('🔴 Full cancellation - zeroing all values');
+            
+            order.groups.forEach(group => {
+                group.items.forEach(item => {
+                    item.balance_quantity = 0;
+                    item.total_amount = 0;
+                });
+                group.total_amount = 0;
+            });
+
+            order.grand_total = 0;
+            order.gst_amount = 0;
+            order.net_amount_payable = 0;
+        }
+
         // Update order status to cancelled
-        const updatedOrder = await Order.findByIdAndUpdate(
-            id,
-            {
-                status: 'cancelled',
-                cancellation_reason: cancellation_reason || 'No reason provided',
-                cancelled_by: userId,
-                cancelled_by_name: userName,
-                cancelled_at: new Date(),
-                updated_by: userId,
-                updated_by_name: userName
-            },
-            { new: true, runValidators: true }
-        );
+        order.status = 'cancelled';
+        order.cancellation_reason = cancellation_reason || 'No reason provided';
+        order.cancelled_by = userId;
+        order.cancelled_by_name = userName;
+        order.cancelled_at = new Date();
+        order.updated_by = userId;
+        order.updated_by_name = userName;
+
+        if (paymentAdjustmentResult) {
+            order.payment_adjustment_details = paymentAdjustmentResult;
+        }
+
+        await order.save();
+
+        console.log('✅ Order cancelled successfully');
+        console.log('📊 Cancellation Type:', isPartialCancellation ? 'PARTIAL' : 'FULL');
+        console.log('💰 Payment Adjustment:', paymentAdjustmentResult?.action || 'NONE');
 
         res.status(200).json({
             success: true,
             message: 'Order cancelled successfully',
-            data: updatedOrder
+            data: order,
+            cancellationDetails: {
+                type: isPartialCancellation ? 'partial' : 'full',
+                totalOrderQty: totalOrderQty,
+                dispatchedQty: totalDispatchedQty,
+                cancelledQty: totalOrderQty - totalDispatchedQty,
+                paymentAdjustment: paymentAdjustmentResult
+            }
         });
 
     } catch (error) {
-        console.error('Error cancelling order:', error);
+        console.error('❌ Error cancelling order:', error);
+        console.error('Stack:', error.stack);
         res.status(500).json({
             success: false,
             message: 'Failed to cancel order',
+            error: error.message
+        });
+    }
+};
+
+// Get pending orders by party ID
+export const getPendingOrdersByParty = async (req, res) => {
+    try {
+        const { partyId } = req.params;
+
+        console.log('🔍 Fetching pending orders for party:', partyId);
+
+        const orders = await Order.find({
+            party_id: partyId,
+            status: { $ne: 'cancelled' },
+            balance_amount: { $gt: 0 }
+        }).select('_id order_no order_date net_amount_payable amount_paid balance_amount status');
+
+        console.log('📋 Found', orders.length, 'pending orders');
+
+        res.status(200).json({
+            success: true,
+            data: orders
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching pending orders:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch pending orders',
             error: error.message
         });
     }
