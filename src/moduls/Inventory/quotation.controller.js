@@ -1,5 +1,6 @@
 import Quotation from './quotation.model.js';
 import mongoose from 'mongoose';
+import XLSX from 'xlsx';
 
 // Create a new quotation
 export const createQuotation = async (req, res) => {
@@ -464,6 +465,153 @@ export const downloadQuotationPDF = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch quotation for PDF',
+            error: error.message
+        });
+    }
+};
+
+// Download quotation as Excel
+export const downloadQuotationExcel = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid quotation ID'
+            });
+        }
+
+        const quotation = await Quotation.findById(id)
+            .populate('company_id')
+            .populate('party_id')
+            .populate('site_id')
+            .populate('created_by', 'User_Name User_Email');
+
+        if (!quotation) {
+            return res.status(404).json({
+                success: false,
+                message: 'Quotation not found'
+            });
+        }
+
+        // Create a new workbook
+        const workbook = XLSX.utils.book_new();
+
+        // Prepare header information
+        const headerData = [
+            ['QUOTATION'],
+            [quotation.quotation_no],
+            [`Date: ${new Date(quotation.quotation_date).toLocaleDateString('en-IN')}`],
+            [],
+            ['Company Details'],
+            [quotation.company_name || ''],
+            [quotation.company_address || ''],
+            [`GSTIN: ${quotation.company_gstin || 'N/A'}`],
+            [],
+            ['Party Details'],
+            [quotation.party_billing_name || quotation.party_name || ''],
+            [quotation.party_billing_address || ''],
+            [`GSTIN: ${quotation.party_gstin || 'N/A'}`],
+            [`Phone: ${quotation.party_phone || 'N/A'}`],
+            [],
+            []
+        ];
+
+        // Prepare items data
+        const itemsHeader = ['#', 'Product', 'Product Code', 'Qty', 'MRP', 'Discount', 'Net Rate', 'Total'];
+        const itemsData = [itemsHeader];
+
+        let itemCounter = 1;
+        quotation.groups?.forEach((group, groupIndex) => {
+            // Add group header
+            itemsData.push([`${group.group_name || `Group ${groupIndex + 1}`} - ${group.group_category || ''}`]);
+            
+            // Add items in the group
+            group.items?.forEach((item) => {
+                const discount = item.discount > 0 
+                    ? `-${item.discount}${item.discount_type === 'percentage' ? '%' : '₹'}` 
+                    : '-';
+                
+                itemsData.push([
+                    itemCounter++,
+                    item.product_name || '',
+                    item.product_code || '',
+                    item.quantity || 0,
+                    `₹${item.mrp?.toFixed(2) || '0.00'}`,
+                    discount,
+                    `₹${item.net_rate?.toFixed(2) || '0.00'}`,
+                    `₹${item.total_amount?.toFixed(2) || '0.00'}`
+                ]);
+            });
+            
+            // Add empty row after each group
+            itemsData.push([]);
+        });
+
+        // Prepare summary data
+        const summaryData = [
+            [],
+            ['Summary', ''],
+            ['Subtotal', `₹${quotation.subtotal?.toFixed(2) || '0.00'}`]
+        ];
+
+        if (quotation.total_discount > 0) {
+            summaryData.push(['Total Discount', `-₹${quotation.total_discount?.toFixed(2)}`]);
+        }
+
+        if (quotation.gst_amount > 0) {
+            summaryData.push(['GST Amount', `₹${quotation.gst_amount?.toFixed(2)}`]);
+        }
+
+        summaryData.push(['Grand Total', `₹${quotation.grand_total?.toFixed(2) || '0.00'}`]);
+
+        if (quotation.round_off !== undefined && quotation.round_off !== 0) {
+            summaryData.push(['Round Off', `${quotation.round_off > 0 ? '+' : ''}₹${quotation.round_off?.toFixed(2)}`]);
+        }
+
+        summaryData.push(['Net Payable', `₹${quotation.net_amount_payable?.toFixed(2) || '0.00'}`]);
+
+        if (quotation.notes) {
+            summaryData.push([], ['Notes'], [quotation.notes]);
+        }
+
+        // Combine all data
+        const worksheetData = [...headerData, ...itemsData, ...summaryData];
+
+        // Create worksheet
+        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+        // Set column widths
+        worksheet['!cols'] = [
+            { wch: 5 },   // #
+            { wch: 30 },  // Product
+            { wch: 15 },  // Product Code
+            { wch: 8 },   // Qty
+            { wch: 12 },  // MRP
+            { wch: 12 },  // Discount
+            { wch: 12 },  // Net Rate
+            { wch: 15 }   // Total
+        ];
+
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Quotation');
+
+        // Generate buffer
+        const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename=Quotation_${quotation.quotation_no}.xlsx`);
+
+        // Send the file
+        res.send(excelBuffer);
+
+    } catch (error) {
+        console.error('Error generating Excel:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to generate Excel file',
             error: error.message
         });
     }
