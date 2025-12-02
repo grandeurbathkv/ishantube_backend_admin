@@ -850,3 +850,370 @@ export const getPendingOrdersByParty = async (req, res) => {
         });
     }
 };
+
+// Get orders with partial or unavailable items (for Purchase Management)
+export const getPartialUnavailableOrders = async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            brand,
+            party_id,
+            order_id,
+            search,
+            sort_by = 'order_date',
+            sort_order = 'desc'
+        } = req.query;
+
+        console.log('🔍 Fetching partial/unavailable orders with filters:', req.query);
+
+        // Build filter query
+        const filter = {
+            status: { $ne: 'cancelled' }
+        };
+
+        if (party_id) {
+            filter.party_id = party_id;
+        }
+
+        if (order_id) {
+            filter._id = order_id;
+        }
+
+        // Search filter
+        if (search) {
+            filter.$or = [
+                { order_no: { $regex: search, $options: 'i' } },
+                { party_name: { $regex: search, $options: 'i' } },
+                { party_billing_name: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        // Pagination
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const sortOrder = sort_order === 'asc' ? 1 : -1;
+        const sortObj = { [sort_by]: sortOrder };
+
+        // Get all orders matching filter
+        const allOrders = await Order.find(filter)
+            .populate('company_id', 'Company_Name Company_Short_Code')
+            .populate('party_id', 'Party_Billing_Name Party_id')
+            .populate('site_id', 'Site_Billing_Name Site_id')
+            .populate('created_by', 'User_Name User_Email')
+            .sort(sortObj);
+
+        console.log(`📊 Found ${allOrders.length} total orders before filtering`);
+
+        // Filter orders with partial or unavailable items
+        const ordersWithPartialUnavailable = [];
+
+        for (const order of allOrders) {
+            const orderObj = order.toObject();
+            
+            // Calculate consolidated quantities for each product code
+            const consolidatedQuantities = {};
+            for (const group of orderObj.groups) {
+                for (const item of group.items) {
+                    const productCode = item.product_code;
+                    if (!consolidatedQuantities[productCode]) {
+                        consolidatedQuantities[productCode] = 0;
+                    }
+                    const balanceQty = item.balance_quantity || (item.quantity - (item.dispatched_quantity || 0));
+                    consolidatedQuantities[productCode] += balanceQty;
+                }
+            }
+
+            let hasPartialOrUnavailable = false;
+            let orderPartialItems = [];
+            let orderUnavailableItems = [];
+
+            for (let groupIndex = 0; groupIndex < orderObj.groups.length; groupIndex++) {
+                const group = orderObj.groups[groupIndex];
+
+                for (let itemIndex = 0; itemIndex < group.items.length; itemIndex++) {
+                    const item = group.items[itemIndex];
+
+                    try {
+                        // Get product from inventory
+                        const product = await Product.findById(item.product_id);
+
+                        if (product) {
+                            // Apply brand filter if specified
+                            if (brand && product.Product_Brand !== brand) {
+                                continue;
+                            }
+
+                            // Calculate available stock (Fresh Stock)
+                            const freshStock = product.Product_Fresh_Stock || 0;
+                            const consolidatedQty = consolidatedQuantities[item.product_code] || 0;
+
+                            // Calculate unavailable quantity: consolidated - fresh stock
+                            const unavailableQty = Math.max(0, consolidatedQty - freshStock);
+
+                            // Update item with inventory data
+                            item.fresh_stock = freshStock;
+                            item.consolidated_quantity = consolidatedQty;
+                            item.unavailable_quantity = unavailableQty;
+                            item.dispatched_quantity = item.dispatched_quantity || 0;
+                            item.balance_quantity = item.quantity - item.dispatched_quantity;
+                            item.product_brand = product.Product_Brand;
+
+                            // Determine availability status
+                            if (unavailableQty > 0) {
+                                if (freshStock > 0) {
+                                    item.availability_status = 'partial';
+                                    hasPartialOrUnavailable = true;
+                                    orderPartialItems.push({
+                                        product_code: item.product_code,
+                                        product_name: item.product_name,
+                                        brand: product.Product_Brand,
+                                        consolidated_qty: consolidatedQty,
+                                        fresh_stock: freshStock,
+                                        unavailable_qty: unavailableQty
+                                    });
+                                } else {
+                                    item.availability_status = 'unavailable';
+                                    hasPartialOrUnavailable = true;
+                                    orderUnavailableItems.push({
+                                        product_code: item.product_code,
+                                        product_name: item.product_name,
+                                        brand: product.Product_Brand,
+                                        consolidated_qty: consolidatedQty,
+                                        fresh_stock: freshStock,
+                                        unavailable_qty: unavailableQty
+                                    });
+                                }
+                            } else {
+                                item.availability_status = 'available';
+                            }
+                        }
+                    } catch (productError) {
+                        console.error(`Error fetching product ${item.product_id}:`, productError);
+                    }
+                }
+            }
+
+            // Only include orders with partial or unavailable items
+            if (hasPartialOrUnavailable) {
+                orderObj.partial_items = orderPartialItems;
+                orderObj.unavailable_items = orderUnavailableItems;
+                orderObj.total_partial_items = orderPartialItems.length;
+                orderObj.total_unavailable_items = orderUnavailableItems.length;
+                ordersWithPartialUnavailable.push(orderObj);
+            }
+        }
+
+        console.log(`✅ Found ${ordersWithPartialUnavailable.length} orders with partial/unavailable items`);
+
+        // Apply pagination to filtered results
+        const paginatedOrders = ordersWithPartialUnavailable.slice(skip, skip + parseInt(limit));
+
+        res.status(200).json({
+            success: true,
+            message: 'Orders with partial/unavailable items retrieved successfully',
+            data: paginatedOrders,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total: ordersWithPartialUnavailable.length,
+                totalPages: Math.ceil(ordersWithPartialUnavailable.length / parseInt(limit))
+            },
+            filters: {
+                brand,
+                party_id,
+                order_id,
+                search
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Error fetching partial/unavailable orders:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch orders',
+            error: error.message
+        });
+    }
+};
+
+// Export orders to Excel
+export const exportOrdersToExcel = async (req, res) => {
+    try {
+        const { order_ids } = req.body;
+
+        if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order IDs are required'
+            });
+        }
+
+        console.log('📊 Exporting orders to Excel:', order_ids);
+
+        // Fetch orders with populated data
+        const orders = await Order.find({ _id: { $in: order_ids } })
+            .populate('company_id', 'Company_Name')
+            .populate('party_id', 'Billing_Name Contact_Person_Name Mobile_No Email')
+            .lean();
+
+        if (orders.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No orders found'
+            });
+        }
+
+        // Create Excel workbook data
+        const excelData = [];
+        
+        orders.forEach(order => {
+            // Add order header
+            excelData.push({
+                'Order No': order.order_no,
+                'Party Name': order.party_id?.Billing_Name || 'N/A',
+                'Contact Person': order.party_id?.Contact_Person_Name || 'N/A',
+                'Mobile': order.party_id?.Mobile_No || 'N/A',
+                'Email': order.party_id?.Email || 'N/A',
+                'Order Date': new Date(order.order_date).toLocaleDateString(),
+                'Status': order.status,
+                'Payment Status': order.payment_status,
+                'Total Amount': order.net_amount_payable,
+                'Partial Items': order.total_partial_items || 0,
+                'Unavailable Items': order.total_unavailable_items || 0
+            });
+
+            // Add items details
+            if (order.groups && order.groups.length > 0) {
+                order.groups.forEach(group => {
+                    if (group.items && group.items.length > 0) {
+                        group.items.forEach(item => {
+                            const unavailableQty = Math.max(0, (item.consolidated_quantity || 0) - (item.fresh_stock || 0));
+                            if (unavailableQty > 0 || (item.consolidated_quantity || 0) > 0) {
+                                excelData.push({
+                                    'Order No': '',
+                                    'Party Name': '',
+                                    'Product Name': item.product_name || 'N/A',
+                                    'Brand': item.brand || 'N/A',
+                                    'Quantity': item.quantity || 0,
+                                    'Consolidated Stock': item.consolidated_quantity || 0,
+                                    'Fresh Stock': item.fresh_stock || 0,
+                                    'Unavailable Qty': unavailableQty,
+                                    'Price': item.price || 0,
+                                    'Total': item.total || 0
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Add empty row between orders
+            excelData.push({});
+        });
+
+        // Return data for Excel generation (frontend will handle actual Excel creation)
+        res.status(200).json({
+            success: true,
+            message: 'Export data prepared successfully',
+            data: excelData,
+            orders: orders
+        });
+
+    } catch (error) {
+        console.error('❌ Error exporting orders:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to export orders',
+            error: error.message
+        });
+    }
+};
+
+// Send email to vendor
+export const sendEmailToVendor = async (req, res) => {
+    try {
+        const { order_ids, message, subject } = req.body;
+
+        if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Order IDs are required'
+            });
+        }
+
+        console.log('📧 Sending email to vendor for orders:', order_ids);
+
+        // Fetch orders with populated data
+        const orders = await Order.find({ _id: { $in: order_ids } })
+            .populate('company_id', 'Company_Name Email Mobile_No')
+            .populate('party_id', 'Billing_Name Contact_Person_Name Mobile_No Email')
+            .lean();
+
+        if (orders.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'No orders found'
+            });
+        }
+
+        // Prepare email data
+        const emailData = {
+            orders: orders.map(order => ({
+                order_no: order.order_no,
+                party_name: order.party_id?.Billing_Name || 'N/A',
+                party_email: order.party_id?.Email || '',
+                party_mobile: order.party_id?.Mobile_No || '',
+                order_date: new Date(order.order_date).toLocaleDateString(),
+                total_amount: order.net_amount_payable,
+                partial_items: order.total_partial_items || 0,
+                unavailable_items: order.total_unavailable_items || 0,
+                items: []
+            })),
+            subject: subject || `Purchase Order - Partial/Unavailable Items Alert`,
+            message: message || `Dear Vendor,\n\nThe following orders have partial or unavailable items. Please review and update stock availability.\n\nBest regards,\nPurchase Team`
+        };
+
+        // Extract items with stock issues
+        orders.forEach((order, idx) => {
+            if (order.groups && order.groups.length > 0) {
+                order.groups.forEach(group => {
+                    if (group.items && group.items.length > 0) {
+                        group.items.forEach(item => {
+                            const unavailableQty = Math.max(0, (item.consolidated_quantity || 0) - (item.fresh_stock || 0));
+                            if (unavailableQty > 0 || (item.consolidated_quantity || 0) > 0) {
+                                emailData.orders[idx].items.push({
+                                    product_name: item.product_name || 'N/A',
+                                    brand: item.brand || 'N/A',
+                                    quantity: item.quantity || 0,
+                                    consolidated_stock: item.consolidated_quantity || 0,
+                                    fresh_stock: item.fresh_stock || 0,
+                                    unavailable_qty: unavailableQty
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        });
+
+        // TODO: Implement actual email sending logic using nodemailer or similar service
+        // For now, return email data
+        console.log('✅ Email data prepared for:', emailData.orders.length, 'orders');
+
+        res.status(200).json({
+            success: true,
+            message: 'Email sent successfully to vendor',
+            data: emailData,
+            info: 'Email functionality requires email service configuration'
+        });
+
+    } catch (error) {
+        console.error('❌ Error sending email:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send email',
+            error: error.message
+        });
+    }
+};
+

@@ -10,6 +10,15 @@ router.use(protect);
 // Order statistics
 router.get('/stats', orderController.getOrderStats);
 
+// Get orders with partial or unavailable items (for Purchase Management)
+router.get('/partial-unavailable', orderController.getPartialUnavailableOrders);
+
+// Export orders to Excel
+router.post('/export-excel', orderController.exportOrdersToExcel);
+
+// Send email to vendor
+router.post('/send-vendor-email', orderController.sendEmailToVendor);
+
 // Get pending orders by party
 router.get('/pending-by-party/:partyId', orderController.getPendingOrdersByParty);
 

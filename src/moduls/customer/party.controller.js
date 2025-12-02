@@ -612,6 +612,9 @@ const getPartyAnalytics = async (req, res) => {
 // ========== Get All Party Dropdown ==========
 const getAllPartiesDropdown = async (req, res) => {
   try {
+    console.log('🔵 PARTY DROPDOWN - Step 1: API Called');
+    console.log('🔵 PARTY DROPDOWN - Step 2: Query params:', req.query);
+    
     const { search, limit = 100 } = req.query;
 
     let filter = {};
@@ -624,14 +627,15 @@ const getAllPartiesDropdown = async (req, res) => {
       ];
     }
 
-    console.log('🔍 Fetching parties with filter:', filter);
+    console.log('🔵 PARTY DROPDOWN - Step 3: Filter:', filter);
 
     const parties = await Party.find(filter)
       .select('Party_id Party_Billing_Name')
       .sort({ Party_id: 1 })
       .limit(parseInt(limit));
 
-    console.log('📋 Found parties count:', parties.length);
+    console.log('🔵 PARTY DROPDOWN - Step 4: Found parties count:', parties.length);
+    console.log('🔵 PARTY DROPDOWN - Step 5: Sample party:', parties[0]);
 
     const dropdownData = parties.map(party => ({
       id: party._id.toString(),
@@ -640,7 +644,8 @@ const getAllPartiesDropdown = async (req, res) => {
       label: `${party.Party_id} - ${party.Party_Billing_Name}`
     }));
 
-    console.log('✅ Dropdown data created:', dropdownData.length);
+    console.log('🔵 PARTY DROPDOWN - Step 6: Mapped dropdown data count:', dropdownData.length);
+    console.log('🔵 PARTY DROPDOWN - Step 7: Sample mapped party:', dropdownData[0]);
 
     return res.status(200).json({
       success: true,
@@ -651,7 +656,9 @@ const getAllPartiesDropdown = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Party Dropdown Error:', error);
+    console.error('❌ PARTY DROPDOWN - Error:', error);
+    console.error('❌ PARTY DROPDOWN - Error message:', error.message);
+    console.error('❌ PARTY DROPDOWN - Error stack:', error.stack);
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
