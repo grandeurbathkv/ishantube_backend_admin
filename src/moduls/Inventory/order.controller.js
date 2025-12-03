@@ -866,6 +866,9 @@ export const getPartialUnavailableOrders = async (req, res) => {
         } = req.query;
 
         console.log('🔍 Fetching partial/unavailable orders with filters:', req.query);
+        console.log('🔍 Brand filter:', brand, '(empty means ALL brands)');
+        console.log('🔍 Party filter:', party_id, '(empty means ALL parties)');
+        console.log('🔍 Order filter:', order_id, '(empty means ALL orders)');
 
         // Build filter query
         const filter = {
@@ -940,7 +943,12 @@ export const getPartialUnavailableOrders = async (req, res) => {
                         if (product) {
                             // Apply brand filter if specified
                             if (brand && product.Product_Brand !== brand) {
+                                console.log(`❌ Skipping product ${item.product_code} - Brand ${product.Product_Brand} doesn't match filter ${brand}`);
                                 continue;
+                            }
+                            
+                            if (brand) {
+                                console.log(`✅ Including product ${item.product_code} - Brand ${product.Product_Brand} matches filter ${brand}`);
                             }
 
                             // Calculate available stock (Fresh Stock)
@@ -1003,10 +1011,13 @@ export const getPartialUnavailableOrders = async (req, res) => {
             }
         }
 
-        console.log(`✅ Found ${ordersWithPartialUnavailable.length} orders with partial/unavailable items`);
+        console.log(`✅ Found ${ordersWithPartialUnavailable.length} orders with partial/unavailable items after brand filtering`);
+        console.log(`📄 Applying pagination: page ${page}, limit ${limit}, skip ${skip}`);
 
         // Apply pagination to filtered results
         const paginatedOrders = ordersWithPartialUnavailable.slice(skip, skip + parseInt(limit));
+        
+        console.log(`📦 Returning ${paginatedOrders.length} orders for current page`);
 
         res.status(200).json({
             success: true,
