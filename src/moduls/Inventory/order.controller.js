@@ -865,22 +865,55 @@ export const getPartialUnavailableOrders = async (req, res) => {
             sort_order = 'desc'
         } = req.query;
 
-        console.log('🔍 Fetching partial/unavailable orders with filters:', req.query);
-        console.log('🔍 Brand filter:', brand, '(empty means ALL brands)');
-        console.log('🔍 Party filter:', party_id, '(empty means ALL parties)');
-        console.log('🔍 Order filter:', order_id, '(empty means ALL orders)');
+        console.log('\n🔍 ==================== BACKEND REQUEST START ====================');
+        console.log('🔍 Backend - Fetching partial/unavailable orders with filters:', req.query);
+        console.log('🔍 Backend - Brand filter:', brand, '| Type:', typeof brand, '| Length:', brand?.length, '| isEmpty:', brand === '' || brand === undefined);
+        console.log('🔍 Backend - Party filter (raw):', party_id, '(empty means ALL parties)');
+        console.log('🔍 Backend - Order filter (raw):', order_id, '(empty means ALL orders)');
 
         // Build filter query
         const filter = {
             status: { $ne: 'cancelled' }
         };
 
-        if (party_id) {
-            filter.party_id = party_id;
+        // Handle multiple party_id values (comma-separated string or array)
+        if (party_id && party_id !== 'all' && party_id !== '') {
+            if (typeof party_id === 'string' && party_id.includes(',')) {
+                // Comma-separated string: "id1,id2,id3"
+                const partyIds = party_id.split(',').map(id => id.trim()).filter(id => id);
+                console.log('🔍 Backend - Parsed party_ids (multiple):', partyIds);
+                filter.party_id = { $in: partyIds };
+            } else if (Array.isArray(party_id)) {
+                // Already an array
+                console.log('🔍 Backend - Party_ids (array):', party_id);
+                filter.party_id = { $in: party_id };
+            } else {
+                // Single value
+                console.log('🔍 Backend - Party_id (single):', party_id);
+                filter.party_id = party_id;
+            }
+        } else {
+            console.log('🔍 Backend - No party filter applied (showing ALL parties)');
         }
 
-        if (order_id) {
-            filter._id = order_id;
+        // Handle multiple order_id values (comma-separated string or array)
+        if (order_id && order_id !== 'all' && order_id !== '') {
+            if (typeof order_id === 'string' && order_id.includes(',')) {
+                // Comma-separated string: "id1,id2,id3"
+                const orderIds = order_id.split(',').map(id => id.trim()).filter(id => id);
+                console.log('🔍 Backend - Parsed order_ids (multiple):', orderIds);
+                filter._id = { $in: orderIds };
+            } else if (Array.isArray(order_id)) {
+                // Already an array
+                console.log('🔍 Backend - Order_ids (array):', order_id);
+                filter._id = { $in: order_id };
+            } else {
+                // Single value
+                console.log('🔍 Backend - Order_id (single):', order_id);
+                filter._id = order_id;
+            }
+        } else {
+            console.log('🔍 Backend - No order filter applied (showing ALL orders)');
         }
 
         // Search filter
@@ -905,13 +938,20 @@ export const getPartialUnavailableOrders = async (req, res) => {
             .populate('created_by', 'User_Name User_Email')
             .sort(sortObj);
 
+        console.log(`\n📊 ==================== STEP 1: DATABASE QUERY ====================`);
         console.log(`📊 Found ${allOrders.length} total orders before filtering`);
+        console.log(`📊 MongoDB filter used:`, JSON.stringify(filter, null, 2));
 
         // Filter orders with partial or unavailable items
         const ordersWithPartialUnavailable = [];
+        let orderCounter = 0;
+
+        console.log(`\n📊 ==================== STEP 2: PROCESSING ORDERS ====================`);
 
         for (const order of allOrders) {
+            orderCounter++;
             const orderObj = order.toObject();
+            console.log(`\n🔷 Processing Order ${orderCounter}/${allOrders.length}: ${orderObj.order_no} (ID: ${orderObj._id})`);
             
             // Calculate consolidated quantities for each product code
             const consolidatedQuantities = {};
@@ -941,14 +981,19 @@ export const getPartialUnavailableOrders = async (req, res) => {
                         const product = await Product.findById(item.product_id);
 
                         if (product) {
-                            // Apply brand filter if specified
-                            if (brand && product.Product_Brand !== brand) {
-                                console.log(`❌ Skipping product ${item.product_code} - Brand ${product.Product_Brand} doesn't match filter ${brand}`);
+                            console.log(`  🔸 Product found: ${item.product_code} | Product Brand: '${product.Product_Brand}' | Filter Brand: '${brand}'`);
+                            console.log(`  🔸 Brand check: brand='${brand}' | trim='${brand?.trim()}' | isEmpty=${!brand || brand.trim() === ''}`);
+                            
+                            // Apply brand filter if specified (and not empty string)
+                            if (brand && brand.trim() !== '' && product.Product_Brand !== brand) {
+                                console.log(`  ❌ SKIPPING - Brand mismatch: Product='${product.Product_Brand}' vs Filter='${brand}'`);
                                 continue;
                             }
                             
-                            if (brand) {
-                                console.log(`✅ Including product ${item.product_code} - Brand ${product.Product_Brand} matches filter ${brand}`);
+                            if (brand && brand.trim() !== '') {
+                                console.log(`  ✅ INCLUDED - Brand match: Product='${product.Product_Brand}' matches Filter='${brand}'`);
+                            } else {
+                                console.log(`  ✅ INCLUDED - No brand filter (showing ALL brands)`);
                             }
 
                             // Calculate available stock (Fresh Stock)
@@ -1008,16 +1053,22 @@ export const getPartialUnavailableOrders = async (req, res) => {
                 orderObj.total_partial_items = orderPartialItems.length;
                 orderObj.total_unavailable_items = orderUnavailableItems.length;
                 ordersWithPartialUnavailable.push(orderObj);
+                console.log(`  ✅ Order ${orderObj.order_no} ADDED to results (${orderPartialItems.length} partial, ${orderUnavailableItems.length} unavailable)`);
+            } else {
+                console.log(`  ⏭️ Order ${orderObj.order_no} SKIPPED (no partial/unavailable items matching filter)`);
             }
         }
 
-        console.log(`✅ Found ${ordersWithPartialUnavailable.length} orders with partial/unavailable items after brand filtering`);
+        console.log(`\n📊 ==================== STEP 3: FILTERING COMPLETE ====================`);
+        console.log(`✅ Total orders with partial/unavailable items: ${ordersWithPartialUnavailable.length}`);
         console.log(`📄 Applying pagination: page ${page}, limit ${limit}, skip ${skip}`);
 
         // Apply pagination to filtered results
         const paginatedOrders = ordersWithPartialUnavailable.slice(skip, skip + parseInt(limit));
         
         console.log(`📦 Returning ${paginatedOrders.length} orders for current page`);
+        console.log(`📦 Order IDs being returned:`, paginatedOrders.map(o => `${o.order_no} (${o._id})`));
+        console.log('🔍 ==================== BACKEND REQUEST END ====================\n');
 
         res.status(200).json({
             success: true,
