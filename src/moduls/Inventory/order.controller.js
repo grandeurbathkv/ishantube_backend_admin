@@ -948,13 +948,11 @@ export const getPartialUnavailableOrders = async (req, res) => {
 
         console.log(`\n📊 ==================== STEP 2: PROCESSING ORDERS ====================`);
 
+        // Calculate consolidated quantities for each product code across ALL filtered orders
+        // This ensures we sum balance quantities from all selected parties/orders
+        const consolidatedQuantities = {};
         for (const order of allOrders) {
-            orderCounter++;
             const orderObj = order.toObject();
-            console.log(`\n🔷 Processing Order ${orderCounter}/${allOrders.length}: ${orderObj.order_no} (ID: ${orderObj._id})`);
-            
-            // Calculate consolidated quantities for each product code
-            const consolidatedQuantities = {};
             for (const group of orderObj.groups) {
                 for (const item of group.items) {
                     const productCode = item.product_code;
@@ -965,6 +963,15 @@ export const getPartialUnavailableOrders = async (req, res) => {
                     consolidatedQuantities[productCode] += balanceQty;
                 }
             }
+        }
+        
+        console.log('\n📊 Consolidated Quantities across all filtered orders:', consolidatedQuantities);
+
+        for (const order of allOrders) {
+            orderCounter++;
+            const orderObj = order.toObject();
+            console.log(`\n🔷 Processing Order ${orderCounter}/${allOrders.length}: ${orderObj.order_no} (ID: ${orderObj._id})`);
+
 
             let hasPartialOrUnavailable = false;
             let orderPartialItems = [];
@@ -998,9 +1005,12 @@ export const getPartialUnavailableOrders = async (req, res) => {
 
                             // Calculate available stock (Fresh Stock)
                             const freshStock = product.Product_Fresh_Stock || 0;
+                            
+                            // Get consolidated quantity from ALL filtered orders for this product code
                             const consolidatedQty = consolidatedQuantities[item.product_code] || 0;
 
-                            // Calculate unavailable quantity: consolidated - fresh stock
+                            // Calculate unavailable quantity using the formula:
+                            // unavailable_qty = Sum of all balance quantities for this product code (from filtered orders) - fresh stock
                             const unavailableQty = Math.max(0, consolidatedQty - freshStock);
 
                             // Update item with inventory data
@@ -1010,6 +1020,8 @@ export const getPartialUnavailableOrders = async (req, res) => {
                             item.dispatched_quantity = item.dispatched_quantity || 0;
                             item.balance_quantity = item.quantity - item.dispatched_quantity;
                             item.product_brand = product.Product_Brand;
+                            
+                            console.log(`    📊 Product: ${item.product_code} | Consolidated Qty (all filtered orders): ${consolidatedQty} | Fresh Stock: ${freshStock} | Unavailable: ${unavailableQty}`);
 
                             // Determine availability status
                             if (unavailableQty > 0) {

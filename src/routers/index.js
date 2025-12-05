@@ -16,6 +16,7 @@ import quotationRouter from '../moduls/Inventory/quotation.router.js';
 import orderRouter from '../moduls/Inventory/order.router.js';
 import dispatchRouter from '../moduls/Inventory/dispatch.router.js';
 import paymentReceiptRouter from '../moduls/Inventory/paymentReceipt.router.js';
+import purchaseRequestRouter from '../moduls/Inventory/purchaseRequest.router.js';
 
 // Import chat router
 import chatRouter from '../moduls/chat/chat.router.js';
@@ -39,6 +40,7 @@ router.use('/quotation', quotationRouter);
 router.use('/order', orderRouter);
 router.use('/dispatch', dispatchRouter);
 router.use('/payment-receipt', paymentReceiptRouter);
+router.use('/purchase-request', purchaseRequestRouter);
 router.use('/chat', chatRouter);
 
 
