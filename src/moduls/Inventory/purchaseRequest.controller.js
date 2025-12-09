@@ -244,6 +244,11 @@ export const updatePurchaseRequest = async (req, res) => {
         const { id } = req.params;
         const userId = req.user?._id || req.user?.id;
 
+        console.log('\n🔷 ==================== UPDATE PR REQUEST START ====================');
+        console.log('🔷 PR ID:', id);
+        console.log('🔷 User ID:', userId);
+        console.log('🔷 Update data:', JSON.stringify(req.body, null, 2));
+
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -261,7 +266,7 @@ export const updatePurchaseRequest = async (req, res) => {
         }
 
         // Update fields
-        const allowedUpdates = ['PR_Vendor', 'PI_Received', 'status', 'remarks'];
+        const allowedUpdates = ['PR_Vendor', 'PI_Received', 'status', 'remarks', 'pi_number', 'pi_date', 'pi_amount', 'items'];
         const updates = {};
 
         allowedUpdates.forEach(field => {
@@ -270,16 +275,38 @@ export const updatePurchaseRequest = async (req, res) => {
             }
         });
 
+        // If PI is received, ensure PI details are provided
+        if (req.body.PI_Received === true) {
+            if (!req.body.pi_number || !req.body.pi_date) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'PI Number and PI Date are required when marking PR as received'
+                });
+            }
+            console.log('✅ PI Details:', {
+                pi_number: req.body.pi_number,
+                pi_date: req.body.pi_date,
+                pi_amount: req.body.pi_amount
+            });
+        }
+
         // If status is being approved, add approval details
         if (req.body.status === 'approved' && purchaseRequest.status !== 'approved') {
             updates.approved_by = userId;
             updates.approved_date = new Date();
+            console.log('✅ PR approved by user:', userId);
         }
 
         Object.assign(purchaseRequest, updates);
         await purchaseRequest.save();
 
         console.log('✅ Purchase Request updated successfully:', purchaseRequest.PR_Number);
+        console.log('📋 Status:', purchaseRequest.status);
+        console.log('📦 PI Received:', purchaseRequest.PI_Received);
+        if (purchaseRequest.pi_number) {
+            console.log('📄 PI Number:', purchaseRequest.pi_number);
+        }
+        console.log('🔷 ==================== UPDATE PR REQUEST END ====================\n');
 
         res.status(200).json({
             success: true,
@@ -288,7 +315,7 @@ export const updatePurchaseRequest = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error updating Purchase Request:', error);
+        console.error('❌ Error updating Purchase Request:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to update Purchase Request',

@@ -20,6 +20,18 @@ const purchaseRequestSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    // PI (Purchase Invoice) Details
+    pi_number: {
+        type: String,
+        trim: true
+    },
+    pi_date: {
+        type: Date
+    },
+    pi_amount: {
+        type: Number,
+        default: 0
+    },
     items: [{
         item_id: {
             type: String,
@@ -56,6 +68,11 @@ const purchaseRequestSchema = new mongoose.Schema({
             default: 0
         },
         unavailable_quantity: {
+            type: Number,
+            default: 0
+        },
+        // PI received quantity for this item
+        pi_received_quantity: {
             type: Number,
             default: 0
         },

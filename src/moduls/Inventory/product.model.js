@@ -235,6 +235,18 @@ const productSchema = new mongoose.Schema({
     min: [0, 'Showroom stock cannot be negative'],
     default: 0
   },
+  Product_Ordered_Quantity: {
+    type: Number,
+    required: false,
+    min: [0, 'Ordered quantity cannot be negative'],
+    default: 0
+  },
+  Product_In_Transit_Quantity: {
+    type: Number,
+    required: false,
+    min: [0, 'In transit quantity cannot be negative'],
+    default: 0
+  },
   Prod_image: {
     type: String,
     trim: true,
