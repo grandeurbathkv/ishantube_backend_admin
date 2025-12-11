@@ -32,6 +32,39 @@ const purchaseRequestSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // Payment Details
+    payment_done: {
+        type: Boolean,
+        default: false
+    },
+    payment_amount: {
+        type: Number,
+        default: 0
+    },
+    payment_utr: {
+        type: String,
+        trim: true
+    },
+    payment_mode: {
+        type: String,
+        enum: ['', 'cheque', 'rtgs', 'neft', 'imps', 'cash', 'upi'],
+        default: ''
+    },
+    payment_reference: {
+        type: String,
+        trim: true
+    },
+    payment_bank: {
+        type: String,
+        trim: true
+    },
+    payment_date: {
+        type: Date
+    },
+    payment_remarks: {
+        type: String,
+        trim: true
+    },
     items: [{
         item_id: {
             type: String,
@@ -92,7 +125,7 @@ const purchaseRequestSchema = new mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'completed'],
+        enum: ['pending', 'approved', 'rejected', 'completed', 'awaiting_payment', 'awaiting_dispatch'],
         default: 'pending'
     },
     remarks: {

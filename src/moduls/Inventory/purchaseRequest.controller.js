@@ -266,7 +266,8 @@ export const updatePurchaseRequest = async (req, res) => {
         }
 
         // Update fields
-        const allowedUpdates = ['PR_Vendor', 'PI_Received', 'status', 'remarks', 'pi_number', 'pi_date', 'pi_amount', 'items'];
+        const allowedUpdates = ['PR_Vendor', 'PI_Received', 'status', 'remarks', 'pi_number', 'pi_date', 'pi_amount', 'items', 
+            'payment_done', 'payment_amount', 'payment_utr', 'payment_mode', 'payment_reference', 'payment_bank', 'payment_date', 'payment_remarks'];
         const updates = {};
 
         allowedUpdates.forEach(field => {
@@ -275,7 +276,7 @@ export const updatePurchaseRequest = async (req, res) => {
             }
         });
 
-        // If PI is received, ensure PI details are provided
+        // If PI is received, ensure PI details are provided and set status to awaiting_payment
         if (req.body.PI_Received === true) {
             if (!req.body.pi_number || !req.body.pi_date) {
                 return res.status(400).json({
@@ -283,10 +284,42 @@ export const updatePurchaseRequest = async (req, res) => {
                     message: 'PI Number and PI Date are required when marking PR as received'
                 });
             }
+            // Auto set status to awaiting_payment when PI is received
+            if (!req.body.status) {
+                updates.status = 'awaiting_payment';
+            }
             console.log('✅ PI Details:', {
                 pi_number: req.body.pi_number,
                 pi_date: req.body.pi_date,
-                pi_amount: req.body.pi_amount
+                pi_amount: req.body.pi_amount,
+                status: updates.status
+            });
+        }
+
+        // If payment is done, ensure payment details are provided and change status to awaiting_dispatch
+        if (req.body.payment_done === true) {
+            if (!req.body.payment_amount || req.body.payment_amount <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Payment Amount is required when recording payment'
+                });
+            }
+            if (!req.body.payment_utr || !req.body.payment_mode) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'UTR Code and Payment Mode are required when recording payment'
+                });
+            }
+            // Auto set status to awaiting_dispatch when payment is done
+            updates.status = 'awaiting_dispatch';
+            updates.payment_date = req.body.payment_date || new Date();
+            console.log('✅ Payment Details:', {
+                payment_amount: req.body.payment_amount,
+                payment_utr: req.body.payment_utr,
+                payment_mode: req.body.payment_mode,
+                payment_reference: req.body.payment_reference,
+                payment_bank: req.body.payment_bank,
+                status: updates.status
             });
         }
 
