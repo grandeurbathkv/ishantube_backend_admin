@@ -228,7 +228,7 @@ const orderSchema = new mongoose.Schema({
     // Order Status
     status: {
         type: String,
-        enum: ['pending', 'partially pending', 'completed', 'cancelled'],
+        enum: ['pending', 'partially pending', 'awaiting_dispatch', 'intrasite', 'completed', 'cancelled'],
         default: 'pending'
     },
     
@@ -284,7 +284,15 @@ const orderSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
-    updated_by_name: String
+    updated_by_name: String,
+
+    // Dispatch Details
+    dispatch_details: {
+        vendor_bill_number: { type: String },
+        vendor_bill_date: { type: Date },
+        dispatch_through: { type: String },
+        docket_number: { type: String }
+    }
 }, {
     timestamps: true
 });

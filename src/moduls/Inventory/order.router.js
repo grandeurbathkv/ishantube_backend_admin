@@ -1,8 +1,11 @@
+
 import express from 'express';
 import { protect } from '../../middleware/user.middleware.js';
 import * as orderController from './order.controller.js';
 
 const router = express.Router();
+// Record dispatch details and update status
+router.post('/:id/record-dispatch', orderController.recordDispatch);
 
 // Apply auth middleware to all routes
 router.use(protect);

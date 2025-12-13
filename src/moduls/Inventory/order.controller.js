@@ -1,3 +1,151 @@
+// Record Dispatch Details and update status
+export const recordDispatch = async (req, res) => {
+    try {
+        console.log('\n');
+        console.log('========================================');
+        console.log('🟢 BACKEND DISPATCH Step 1: Record Dispatch API called');
+        console.log('========================================');
+        
+        const { id } = req.params;
+        console.log('🟢 BACKEND Step 2: Order ID from params:', id);
+        console.log('🟢 BACKEND Step 3: Order ID type:', typeof id);
+        console.log('🟢 BACKEND Step 4: Order ID length:', id?.length);
+        
+        const userId = req.user?._id || req.user?.id;
+        const userName = req.user?.User_Name || 'Unknown User';
+        console.log('🟢 BACKEND Step 5: User ID:', userId);
+        console.log('🟢 BACKEND Step 6: User Name:', userName);
+        console.log('🟢 BACKEND Step 7: Full req.user:', req.user);
+
+        console.log('🟢 BACKEND Step 8: Searching for Order in database...');
+        const order = await Order.findById(id);
+        console.log('🟢 BACKEND Step 9: Order found:', !!order);
+        
+        if (!order) {
+            console.log('🔴 BACKEND ERROR: Order not found in database');
+            console.log('🔴 Searched for ID:', id);
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        console.log('🟢 BACKEND Step 10: Order details:');
+        console.log('   - Order No:', order.order_no);
+        console.log('   - Order Date:', order.order_date);
+        console.log('   - Party Name:', order.party_name);
+        console.log('   - Current Status:', order.status);
+        console.log('   - Status Type:', typeof order.status);
+        console.log('   - Full Order Object:', JSON.stringify(order, null, 2));
+
+        // Only allow if current status is 'awaiting_dispatch'
+        console.log('🟢 BACKEND Step 11: Checking if status is awaiting_dispatch');
+        console.log('🟢 BACKEND Step 12: order.status === "awaiting_dispatch":', order.status === 'awaiting_dispatch');
+        console.log('🟢 BACKEND Step 13: Comparison details:');
+        console.log('   - order.status:', `"${order.status}"`);
+        console.log('   - Expected:', `"awaiting_dispatch"`);
+        console.log('   - Match:', order.status === 'awaiting_dispatch');
+        
+        if (order.status !== 'awaiting_dispatch') {
+            console.log('🔴 BACKEND ERROR: Order is not in awaiting_dispatch status');
+            console.log('🔴 Current status:', order.status);
+            console.log('🔴 Required status: awaiting_dispatch');
+            return res.status(400).json({
+                success: false,
+                message: `Order is not in awaiting_dispatch status. Current status: ${order.status}`
+            });
+        }
+
+        // Log incoming dispatch details
+        console.log('🟢 BACKEND Step 14: Dispatch details from request body:', req.body);
+        console.log('🟢 BACKEND Step 15: vendor_bill_number:', req.body.vendor_bill_number);
+        console.log('🟢 BACKEND Step 16: vendor_bill_date:', req.body.vendor_bill_date);
+        console.log('🟢 BACKEND Step 17: dispatch_through:', req.body.dispatch_through);
+        console.log('🟢 BACKEND Step 18: docket_number:', req.body.docket_number);
+
+        // Update dispatch details and status
+        console.log('🟢 BACKEND Step 19: Updating order dispatch details...');
+        order.dispatch_details = {
+            vendor_bill_number: req.body.vendor_bill_number,
+            vendor_bill_date: req.body.vendor_bill_date,
+            dispatch_through: req.body.dispatch_through,
+            docket_number: req.body.docket_number
+        };
+        console.log('🟢 BACKEND Step 20: Setting status from "awaiting_dispatch" to "intrasite"');
+        order.status = 'intrasite';
+        order.updated_by = userId;
+        order.updated_by_name = userName;
+        
+        console.log('🟢 BACKEND Step 21: Saving order to database...');
+        await order.save();
+        console.log('✅ BACKEND Step 22: Order updated and saved successfully!');
+        console.log('✅ BACKEND Step 23: New status:', order.status);
+        
+        // Update related Purchase Request status to intrasite as well
+        console.log('🟢 BACKEND Step 24: Updating related Purchase Request status...');
+        try {
+            const PurchaseRequest = mongoose.model('PurchaseRequest');
+            const pr = await PurchaseRequest.findOne({ 'items.order_id': id });
+            if (pr) {
+                console.log('✅ Found PR:', pr.PR_Number, 'Current status:', pr.status);
+                pr.status = 'intrasite';
+                await pr.save();
+                console.log('✅ PR status updated to intrasite');
+                
+                // Update Product Inventory: Add to In-Transit and subtract from Ordered
+                console.log('🟢 BACKEND Step 25: Updating Product Inventory Quantities...');
+                try {
+                    const Product = mongoose.model('Product');
+                    for (const item of pr.items) {
+                        if (item.product_id && item.order_id.toString() === id) {
+                            const product = await Product.findById(item.product_id);
+                            if (product) {
+                                const quantity = item.pi_received_quantity || item.quantity || 0;
+                                
+                                // Add to in-transit quantity
+                                product.Product_In_Transit_Quantity = (product.Product_In_Transit_Quantity || 0) + quantity;
+                                
+                                // Subtract from ordered quantity
+                                product.Product_Ordered_Quantity = Math.max(0, (product.Product_Ordered_Quantity || 0) - quantity);
+                                
+                                await product.save();
+                                console.log(`✅ Updated ${product.Prod_Name} (${product.Prod_Code}):`);
+                                console.log(`   - Added ${quantity} to in-transit qty. New: ${product.Product_In_Transit_Quantity}`);
+                                console.log(`   - Subtracted ${quantity} from ordered qty. New: ${product.Product_Ordered_Quantity}`);
+                            }
+                        }
+                    }
+                } catch (inventoryUpdateError) {
+                    console.error('⚠️ Error updating Product Inventory:', inventoryUpdateError.message);
+                    // Don't fail dispatch if inventory update fails
+                }
+            } else {
+                console.log('⚠️ No Purchase Request found for this order');
+            }
+        } catch (prUpdateError) {
+            console.error('⚠️ Error updating PR status:', prUpdateError.message);
+            // Don't fail if PR update fails
+        }
+        
+        console.log('========================================\n');
+
+        res.status(200).json({
+            success: true,
+            message: 'Dispatch details recorded and status updated to intrasite',
+            data: order
+        });
+    } catch (error) {
+        console.log('🔴 BACKEND EXCEPTION in recordDispatch:');
+        console.error('🔴 Error:', error);
+        console.error('🔴 Error message:', error.message);
+        console.error('🔴 Error stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to record dispatch',
+            error: error.message
+        });
+    }
+};
 import Order from './order.model.js';
 import mongoose from 'mongoose';
 import { Product } from '../Inventory/product.model.js';

@@ -125,7 +125,7 @@ const purchaseRequestSchema = new mongoose.Schema({
     }],
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'completed', 'awaiting_payment', 'awaiting_dispatch'],
+        enum: ['pending', 'approved', 'rejected', 'completed', 'awaiting_payment', 'awaiting_dispatch', 'intrasite', 'partial_payment'],
         default: 'pending'
     },
     remarks: {

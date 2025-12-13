@@ -104,6 +104,11 @@ export const createPurchaseRequest = async (req, res) => {
 // Get all Purchase Requests with filters and pagination
 export const getAllPurchaseRequests = async (req, res) => {
     try {
+        console.log('\n');
+        console.log('========================================');
+        console.log('🔵 BACKEND PR FETCH Step 1: getAllPurchaseRequests API called');
+        console.log('========================================');
+        
         const {
             page = 1,
             limit = 10,
@@ -117,38 +122,61 @@ export const getAllPurchaseRequests = async (req, res) => {
             sort_order = 'desc'
         } = req.query;
 
-        console.log('Fetching Purchase Requests with filters:', req.query);
+        console.log('🔵 BACKEND PR FETCH Step 2: Query parameters:', req.query);
+        console.log('🔵 BACKEND PR FETCH Step 3: Parsed parameters:');
+        console.log('   - page:', page);
+        console.log('   - limit:', limit);
+        console.log('   - status:', status);
+        console.log('   - PR_Vendor:', PR_Vendor);
+        console.log('   - PI_Received:', PI_Received);
+        console.log('   - search:', search);
+        console.log('   - sort_by:', sort_by);
+        console.log('   - sort_order:', sort_order);
 
         // Build filter query
         const filter = {};
 
         if (status) {
-            filter.status = status;
+            console.log('🔵 BACKEND PR FETCH Step 4: Adding status filter:', status);
+            // Handle comma-separated status values (e.g., "intrasite,completed")
+            if (status.includes(',')) {
+                const statusArray = status.split(',').map(s => s.trim());
+                console.log('🔵 BACKEND PR FETCH Step 4.1: Multiple statuses:', statusArray);
+                filter.status = { $in: statusArray };
+            } else {
+                filter.status = status;
+            }
         }
 
         if (PR_Vendor) {
+            console.log('🔵 BACKEND PR FETCH Step 5: Adding PR_Vendor filter:', PR_Vendor);
             filter.PR_Vendor = { $regex: PR_Vendor, $options: 'i' };
         }
 
         if (PI_Received !== undefined && PI_Received !== '') {
-            filter.PI_Received = PI_Received === 'true' || PI_Received === true;
+            const piReceivedBool = PI_Received === 'true' || PI_Received === true;
+            console.log('🔵 BACKEND PR FETCH Step 6: Adding PI_Received filter:', PI_Received, '→', piReceivedBool);
+            filter.PI_Received = piReceivedBool;
         }
 
         // Date range filter
         if (from_date || to_date) {
             filter.PR_Date = {};
             if (from_date) {
+                console.log('🔵 BACKEND PR FETCH Step 7: Adding from_date filter:', from_date);
                 filter.PR_Date.$gte = new Date(from_date);
             }
             if (to_date) {
                 const toDate = new Date(to_date);
                 toDate.setHours(23, 59, 59, 999);
+                console.log('🔵 BACKEND PR FETCH Step 8: Adding to_date filter:', to_date);
                 filter.PR_Date.$lte = toDate;
             }
         }
 
         // Search filter
         if (search) {
+            console.log('🔵 BACKEND PR FETCH Step 9: Adding search filter:', search);
             filter.$or = [
                 { PR_Number: { $regex: search, $options: 'i' } },
                 { PR_Vendor: { $regex: search, $options: 'i' } },
@@ -157,15 +185,23 @@ export const getAllPurchaseRequests = async (req, res) => {
             ];
         }
 
+        console.log('🔵 BACKEND PR FETCH Step 10: Final filter object:', JSON.stringify(filter, null, 2));
+
         // Pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const sortOrder = sort_order === 'asc' ? 1 : -1;
         const sortObj = { [sort_by]: sortOrder };
+        
+        console.log('🔵 BACKEND PR FETCH Step 11: Pagination - skip:', skip, 'limit:', parseInt(limit));
+        console.log('🔵 BACKEND PR FETCH Step 12: Sort object:', sortObj);
 
         // Get total count
+        console.log('🔵 BACKEND PR FETCH Step 13: Counting documents with filter...');
         const total = await PurchaseRequest.countDocuments(filter);
+        console.log('🔵 BACKEND PR FETCH Step 14: Total documents found:', total);
 
         // Get Purchase Requests
+        console.log('🔵 BACKEND PR FETCH Step 15: Fetching Purchase Requests from database...');
         const purchaseRequests = await PurchaseRequest.find(filter)
             .populate('created_by', 'User_Name User_Email')
             .populate('approved_by', 'User_Name User_Email')
@@ -173,7 +209,26 @@ export const getAllPurchaseRequests = async (req, res) => {
             .skip(skip)
             .limit(parseInt(limit));
 
-        console.log(`Found ${purchaseRequests.length} Purchase Requests`);
+        console.log('🔵 BACKEND PR FETCH Step 16: Found', purchaseRequests.length, 'Purchase Requests');
+        
+        // Log each PR's details
+        purchaseRequests.forEach((pr, index) => {
+            console.log(`🔵 BACKEND PR FETCH Step 17.${index}: PR #${index + 1}`);
+            console.log(`   - PR Number: ${pr.PR_Number}`);
+            console.log(`   - PR Status: "${pr.status}"`);
+            console.log(`   - PR Vendor: ${pr.PR_Vendor}`);
+            console.log(`   - PI Received: ${pr.PI_Received}`);
+            console.log(`   - Order ID: ${pr.order_id}`);
+            console.log(`   - Items count: ${pr.items?.length}`);
+            if (pr.items && pr.items.length > 0) {
+                pr.items.forEach((item, itemIndex) => {
+                    console.log(`   - Item ${itemIndex + 1} order_id: ${item.order_id}`);
+                });
+            }
+        });
+        
+        console.log('🔵 BACKEND PR FETCH Step 18: Preparing response...');
+        console.log('========================================\n');
 
         res.status(200).json({
             success: true,
@@ -188,7 +243,9 @@ export const getAllPurchaseRequests = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching Purchase Requests:', error);
+        console.error('🔴 BACKEND PR FETCH ERROR:', error);
+        console.error('🔴 Error message:', error.message);
+        console.error('🔴 Error stack:', error.stack);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch Purchase Requests',
@@ -243,10 +300,12 @@ export const updatePurchaseRequest = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user?._id || req.user?.id;
+        const userName = req.user?.User_Name || 'Unknown User';
 
         console.log('\n🔷 ==================== UPDATE PR REQUEST START ====================');
         console.log('🔷 PR ID:', id);
         console.log('🔷 User ID:', userId);
+        console.log('🔷 User Name:', userName);
         console.log('🔷 Update data:', JSON.stringify(req.body, null, 2));
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -296,7 +355,7 @@ export const updatePurchaseRequest = async (req, res) => {
             });
         }
 
-        // If payment is done, ensure payment details are provided and change status to awaiting_dispatch
+        // If payment is done, ensure payment details are provided and change status based on payment amount
         if (req.body.payment_done === true) {
             if (!req.body.payment_amount || req.body.payment_amount <= 0) {
                 return res.status(400).json({
@@ -310,8 +369,48 @@ export const updatePurchaseRequest = async (req, res) => {
                     message: 'UTR Code and Payment Mode are required when recording payment'
                 });
             }
-            // Auto set status to awaiting_dispatch when payment is done
-            updates.status = 'awaiting_dispatch';
+            
+            // Check if payment is full or partial by comparing with PI amount
+            const piAmount = purchaseRequest.pi_amount || 0;
+            const paymentAmount = req.body.payment_amount || 0;
+            
+            console.log('💰 Payment Comparison:', {
+                pi_amount: piAmount,
+                payment_amount: paymentAmount,
+                is_full_payment: paymentAmount >= piAmount
+            });
+            
+            // Set status based on full or partial payment
+            if (paymentAmount >= piAmount && piAmount > 0) {
+                // Full payment - set to awaiting_dispatch
+                updates.status = 'awaiting_dispatch';
+                console.log('✅ Full payment detected - Status set to awaiting_dispatch');
+                
+                // Update Product Ordered Quantity for all items in the PI
+                console.log('📦 Updating Product Ordered Quantities...');
+                try {
+                    const Product = mongoose.model('Product');
+                    for (const item of purchaseRequest.items) {
+                        if (item.product_id) {
+                            const product = await Product.findById(item.product_id);
+                            if (product) {
+                                const quantityToAdd = item.pi_received_quantity || item.quantity || 0;
+                                product.Product_Ordered_Quantity = (product.Product_Ordered_Quantity || 0) + quantityToAdd;
+                                await product.save();
+                                console.log(`✅ Added ${quantityToAdd} to ordered quantity of ${product.Prod_Name} (${product.Prod_Code}). New ordered qty: ${product.Product_Ordered_Quantity}`);
+                            }
+                        }
+                    }
+                } catch (productUpdateError) {
+                    console.error('⚠️ Error updating Product Ordered Quantities:', productUpdateError.message);
+                    // Don't fail payment if product update fails
+                }
+            } else {
+                // Partial payment - set to partial_payment
+                updates.status = 'partial_payment';
+                console.log('⚠️ Partial payment detected - Status set to partial_payment');
+            }
+            
             updates.payment_date = req.body.payment_date || new Date();
             console.log('✅ Payment Details:', {
                 payment_amount: req.body.payment_amount,
@@ -321,6 +420,43 @@ export const updatePurchaseRequest = async (req, res) => {
                 payment_bank: req.body.payment_bank,
                 status: updates.status
             });
+        }
+
+        // ✅ UPDATE RELATED ORDERS TO 'awaiting_dispatch' STATUS when PR status changes
+        // This happens when payment is done OR status is manually set to awaiting_dispatch
+        if (updates.status === 'awaiting_dispatch' && purchaseRequest.status !== 'awaiting_dispatch') {
+            console.log('🔄 PR Status changing to awaiting_dispatch - Updating related Order statuses...');
+            try {
+                const Order = mongoose.model('Order');
+                const orderIds = purchaseRequest.items.map(item => item.order_id).filter(Boolean);
+                const uniqueOrderIds = [...new Set(orderIds.map(id => id.toString()))];
+                
+                console.log('📦 Found', uniqueOrderIds.length, 'unique orders to update:', uniqueOrderIds);
+                
+                for (const orderId of uniqueOrderIds) {
+                    console.log('🔍 Processing order ID:', orderId);
+                    const order = await Order.findById(orderId);
+                    if (order) {
+                        console.log('📋 Found Order:', order.order_no, 'Current status:', order.status);
+                        if (order.status !== 'awaiting_dispatch') {
+                            console.log('🔄 Updating Order:', order.order_no, 'from', order.status, 'to awaiting_dispatch');
+                            order.status = 'awaiting_dispatch';
+                            order.updated_by = userId;
+                            order.updated_by_name = userName;
+                            await order.save();
+                            console.log('✅ Order', order.order_no, 'updated successfully to awaiting_dispatch');
+                        } else {
+                            console.log('⏭️ Order', order.order_no, 'already in awaiting_dispatch status');
+                        }
+                    } else {
+                        console.log('⚠️ Order not found for ID:', orderId);
+                    }
+                }
+            } catch (orderUpdateError) {
+                console.error('⚠️ Error updating Order statuses:', orderUpdateError.message);
+                console.error('⚠️ Error stack:', orderUpdateError.stack);
+                // Don't fail the PR update if order update fails
+            }
         }
 
         // If status is being approved, add approval details
