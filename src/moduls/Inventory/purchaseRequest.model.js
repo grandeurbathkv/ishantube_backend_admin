@@ -65,6 +65,21 @@ const purchaseRequestSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    // Material Received Details
+    material_received: {
+        type: Boolean,
+        default: false
+    },
+    material_received_date: {
+        type: Date
+    },
+    vendor_invoice_number: {
+        type: String,
+        trim: true
+    },
+    invoice_date: {
+        type: Date
+    },
     items: [{
         item_id: {
             type: String,
@@ -106,6 +121,19 @@ const purchaseRequestSchema = new mongoose.Schema({
         },
         // PI received quantity for this item
         pi_received_quantity: {
+            type: Number,
+            default: 0
+        },
+        // Material Received quantities
+        fresh_stock_received: {
+            type: Number,
+            default: 0
+        },
+        damaged_stock_received: {
+            type: Number,
+            default: 0
+        },
+        short_qty_received: {
             type: Number,
             default: 0
         },

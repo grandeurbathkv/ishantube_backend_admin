@@ -5,7 +5,8 @@ import {
     getAllPurchaseRequests,
     getPurchaseRequestById,
     updatePurchaseRequest,
-    deletePurchaseRequest
+    deletePurchaseRequest,
+    recordMaterialReceived
 } from './purchaseRequest.controller.js';
 
 const router = express.Router();
@@ -27,5 +28,8 @@ router.put('/:id', updatePurchaseRequest);
 
 // Delete Purchase Request
 router.delete('/:id', deletePurchaseRequest);
+
+// Record Material Received
+router.post('/:id/material-received', recordMaterialReceived);
 
 export default router;

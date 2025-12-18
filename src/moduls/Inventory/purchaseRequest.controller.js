@@ -159,6 +159,13 @@ export const getAllPurchaseRequests = async (req, res) => {
             filter.PI_Received = piReceivedBool;
         }
 
+        // Material Received filter
+        if (req.query.material_received !== undefined && req.query.material_received !== '') {
+            const materialReceivedBool = req.query.material_received === 'true' || req.query.material_received === true;
+            console.log('🔵 BACKEND PR FETCH Step 6.1: Adding material_received filter:', req.query.material_received, '→', materialReceivedBool);
+            filter.material_received = materialReceivedBool;
+        }
+
         // Date range filter
         if (from_date || to_date) {
             filter.PR_Date = {};
@@ -527,6 +534,84 @@ export const deletePurchaseRequest = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete Purchase Request',
+            error: error.message
+        });
+    }
+};
+
+// Record Material Received
+export const recordMaterialReceived = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { vendor_invoice_number, invoice_date, material_received_date, items } = req.body;
+
+        console.log('\n🔷 ==================== RECORD MATERIAL RECEIVED ====================');
+        console.log('🔷 Purchase Request ID:', id);
+        console.log('🔷 Request body:', JSON.stringify(req.body, null, 2));
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid Purchase Request ID'
+            });
+        }
+
+        // Validate required fields
+        if (!vendor_invoice_number || !invoice_date || !material_received_date) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vendor Invoice Number, Invoice Date, and Material Received Date are required'
+            });
+        }
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Items data is required'
+            });
+        }
+
+        // Find the purchase request
+        const purchaseRequest = await PurchaseRequest.findById(id);
+
+        if (!purchaseRequest) {
+            return res.status(404).json({
+                success: false,
+                message: 'Purchase Request not found'
+            });
+        }
+
+        // Update material received details
+        purchaseRequest.material_received = true;
+        purchaseRequest.material_received_date = material_received_date;
+        purchaseRequest.vendor_invoice_number = vendor_invoice_number;
+        purchaseRequest.invoice_date = invoice_date;
+
+        // Update item quantities
+        items.forEach(itemData => {
+            const item = purchaseRequest.items.find(i => i.item_id === itemData.item_id);
+            if (item) {
+                item.fresh_stock_received = itemData.fresh_stock_received || 0;
+                item.damaged_stock_received = itemData.damaged_stock_received || 0;
+                item.short_qty_received = itemData.short_qty_received || 0;
+            }
+        });
+
+        await purchaseRequest.save();
+
+        console.log('✅ Material Received recorded successfully for PR:', purchaseRequest.PR_Number);
+
+        res.status(200).json({
+            success: true,
+            message: 'Material Received recorded successfully',
+            data: purchaseRequest
+        });
+
+    } catch (error) {
+        console.error('❌ Error recording Material Received:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to record Material Received',
             error: error.message
         });
     }
