@@ -1,5 +1,6 @@
 import PurchaseRequest from './purchaseRequest.model.js';
 import mongoose from 'mongoose';
+import { Product } from './product.model.js';
 
 // Create a new Purchase Request
 export const createPurchaseRequest = async (req, res) => {
@@ -74,7 +75,7 @@ export const createPurchaseRequest = async (req, res) => {
         console.error('Error creating Purchase Request:', error);
         console.error('Error details:', error.message);
         console.error('Error stack:', error.stack);
-        
+
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -82,7 +83,7 @@ export const createPurchaseRequest = async (req, res) => {
                 error: error.message
             });
         }
-        
+
         if (error.name === 'ValidationError') {
             console.error('Validation errors:', error.errors);
             return res.status(400).json({
@@ -92,7 +93,7 @@ export const createPurchaseRequest = async (req, res) => {
                 details: error.errors
             });
         }
-        
+
         res.status(500).json({
             success: false,
             message: 'Failed to create Purchase Request',
@@ -108,7 +109,7 @@ export const getAllPurchaseRequests = async (req, res) => {
         console.log('========================================');
         console.log('🔵 BACKEND PR FETCH Step 1: getAllPurchaseRequests API called');
         console.log('========================================');
-        
+
         const {
             page = 1,
             limit = 10,
@@ -198,7 +199,7 @@ export const getAllPurchaseRequests = async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const sortOrder = sort_order === 'asc' ? 1 : -1;
         const sortObj = { [sort_by]: sortOrder };
-        
+
         console.log('🔵 BACKEND PR FETCH Step 11: Pagination - skip:', skip, 'limit:', parseInt(limit));
         console.log('🔵 BACKEND PR FETCH Step 12: Sort object:', sortObj);
 
@@ -217,7 +218,7 @@ export const getAllPurchaseRequests = async (req, res) => {
             .limit(parseInt(limit));
 
         console.log('🔵 BACKEND PR FETCH Step 16: Found', purchaseRequests.length, 'Purchase Requests');
-        
+
         // Log each PR's details
         purchaseRequests.forEach((pr, index) => {
             console.log(`🔵 BACKEND PR FETCH Step 17.${index}: PR #${index + 1}`);
@@ -233,7 +234,7 @@ export const getAllPurchaseRequests = async (req, res) => {
                 });
             }
         });
-        
+
         console.log('🔵 BACKEND PR FETCH Step 18: Preparing response...');
         console.log('========================================\n');
 
@@ -332,7 +333,7 @@ export const updatePurchaseRequest = async (req, res) => {
         }
 
         // Update fields
-        const allowedUpdates = ['PR_Vendor', 'PI_Received', 'status', 'remarks', 'pi_number', 'pi_date', 'pi_amount', 'items', 
+        const allowedUpdates = ['PR_Vendor', 'PI_Received', 'status', 'remarks', 'pi_number', 'pi_date', 'pi_amount', 'items',
             'payment_done', 'payment_amount', 'payment_utr', 'payment_mode', 'payment_reference', 'payment_bank', 'payment_date', 'payment_remarks'];
         const updates = {};
 
@@ -376,23 +377,23 @@ export const updatePurchaseRequest = async (req, res) => {
                     message: 'UTR Code and Payment Mode are required when recording payment'
                 });
             }
-            
+
             // Check if payment is full or partial by comparing with PI amount
             const piAmount = purchaseRequest.pi_amount || 0;
             const paymentAmount = req.body.payment_amount || 0;
-            
+
             console.log('💰 Payment Comparison:', {
                 pi_amount: piAmount,
                 payment_amount: paymentAmount,
                 is_full_payment: paymentAmount >= piAmount
             });
-            
+
             // Set status based on full or partial payment
             if (paymentAmount >= piAmount && piAmount > 0) {
                 // Full payment - set to awaiting_dispatch
                 updates.status = 'awaiting_dispatch';
                 console.log('✅ Full payment detected - Status set to awaiting_dispatch');
-                
+
                 // Update Product Ordered Quantity for all items in the PI
                 console.log('📦 Updating Product Ordered Quantities...');
                 try {
@@ -417,7 +418,7 @@ export const updatePurchaseRequest = async (req, res) => {
                 updates.status = 'partial_payment';
                 console.log('⚠️ Partial payment detected - Status set to partial_payment');
             }
-            
+
             updates.payment_date = req.body.payment_date || new Date();
             console.log('✅ Payment Details:', {
                 payment_amount: req.body.payment_amount,
@@ -437,9 +438,9 @@ export const updatePurchaseRequest = async (req, res) => {
                 const Order = mongoose.model('Order');
                 const orderIds = purchaseRequest.items.map(item => item.order_id).filter(Boolean);
                 const uniqueOrderIds = [...new Set(orderIds.map(id => id.toString()))];
-                
+
                 console.log('📦 Found', uniqueOrderIds.length, 'unique orders to update:', uniqueOrderIds);
-                
+
                 for (const orderId of uniqueOrderIds) {
                     console.log('🔍 Processing order ID:', orderId);
                     const order = await Order.findById(orderId);
@@ -581,21 +582,108 @@ export const recordMaterialReceived = async (req, res) => {
             });
         }
 
+        // Validate quantities for each item
+        for (const itemData of items) {
+            const item = purchaseRequest.items.find(i => i.item_id === itemData.item_id);
+            if (!item) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Item with item_id ${itemData.item_id} not found in Purchase Request`
+                });
+            }
+
+            const freshStockReceived = itemData.fresh_stock_received || 0;
+            const damagedStockReceived = itemData.damaged_stock_received || 0;
+            const shortQtyReceived = itemData.short_qty_received || 0;
+            const totalReceived = freshStockReceived + damagedStockReceived + shortQtyReceived;
+
+            // Get the order quantity - use pi_received_quantity (PI order qty)
+            const orderQty = item.pi_received_quantity || 0;
+
+            console.log(`📦 Validating Item ${item.item_id}:`, {
+                freshStockReceived,
+                damagedStockReceived,
+                shortQtyReceived,
+                totalReceived,
+                orderQty
+            });
+
+            // Validation: Total received quantity should not exceed order quantity
+            if (totalReceived > orderQty) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Total received quantity (${totalReceived}) for item ${item.product_code} cannot exceed order quantity (${orderQty}). Please check: Fresh Stock (${freshStockReceived}) + Damaged Stock (${damagedStockReceived}) + Short Qty (${shortQtyReceived}).`
+                });
+            }
+        }
+
+        // All validations passed, now update the purchase request and products
+        console.log('✅ All validations passed. Updating Purchase Request and Products...');
+
         // Update material received details
         purchaseRequest.material_received = true;
         purchaseRequest.material_received_date = material_received_date;
         purchaseRequest.vendor_invoice_number = vendor_invoice_number;
         purchaseRequest.invoice_date = invoice_date;
 
-        // Update item quantities
-        items.forEach(itemData => {
+        // Update items and product stocks
+        for (const itemData of items) {
             const item = purchaseRequest.items.find(i => i.item_id === itemData.item_id);
             if (item) {
-                item.fresh_stock_received = itemData.fresh_stock_received || 0;
-                item.damaged_stock_received = itemData.damaged_stock_received || 0;
-                item.short_qty_received = itemData.short_qty_received || 0;
+                const freshStockReceived = itemData.fresh_stock_received || 0;
+                const damagedStockReceived = itemData.damaged_stock_received || 0;
+                const shortQtyReceived = itemData.short_qty_received || 0;
+                const totalReceived = freshStockReceived + damagedStockReceived + shortQtyReceived;
+
+                // Update item quantities in PR
+                item.fresh_stock_received = freshStockReceived;
+                item.damaged_stock_received = damagedStockReceived;
+                item.short_qty_received = shortQtyReceived;
+
+                console.log(`📝 Updated PR Item ${item.item_id}:`, {
+                    freshStockReceived,
+                    damagedStockReceived,
+                    shortQtyReceived
+                });
+
+                // Update Product stock if product_id exists
+                if (item.product_id) {
+                    try {
+                        const product = await Product.findById(item.product_id);
+
+                        if (product) {
+                            // Add fresh stock to Product_Fresh_Stock
+                            product.Product_Fresh_Stock = (product.Product_Fresh_Stock || 0) + freshStockReceived;
+
+                            // Add damaged stock to Product_Damage_stock
+                            product.Product_Damage_stock = (product.Product_Damage_stock || 0) + damagedStockReceived;
+
+                            // Reduce in-transit quantity (intrasite quantity)
+                            const currentInTransit = product.Product_In_Transit_Quantity || 0;
+                            const newInTransit = Math.max(0, currentInTransit - totalReceived);
+                            product.Product_In_Transit_Quantity = newInTransit;
+
+                            await product.save();
+
+                            console.log(`✅ Updated Product ${product.Product_code}:`, {
+                                fresh_stock_added: freshStockReceived,
+                                new_fresh_stock: product.Product_Fresh_Stock,
+                                damaged_stock_added: damagedStockReceived,
+                                new_damaged_stock: product.Product_Damage_stock,
+                                old_in_transit: currentInTransit,
+                                new_in_transit: product.Product_In_Transit_Quantity,
+                                reduced_by: totalReceived
+                            });
+                        } else {
+                            console.warn(`⚠️ Product not found for ID: ${item.product_id}`);
+                        }
+                    } catch (productError) {
+                        console.error(`❌ Error updating product ${item.product_id}:`, productError);
+                        // Continue with other items even if one fails
+                    }
+                }
             }
-        });
+        }
 
         await purchaseRequest.save();
 
