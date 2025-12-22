@@ -625,6 +625,7 @@ export const recordMaterialReceived = async (req, res) => {
         purchaseRequest.material_received_date = material_received_date;
         purchaseRequest.vendor_invoice_number = vendor_invoice_number;
         purchaseRequest.invoice_date = invoice_date;
+        // Note: Status remains 'intrasite' - only material_received flag changes
 
         // Update items and product stocks
         for (const itemData of items) {

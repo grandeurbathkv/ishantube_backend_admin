@@ -114,7 +114,7 @@ export const logoutUser = async (req, res, next) => {
   try {
     // In a stateless JWT implementation, logout is typically handled on the client side
     // by removing the token. However, we can provide a response to confirm logout.
-    
+
     res.json({
       message: 'Logout successful',
       success: true,
@@ -130,7 +130,7 @@ export const logoutUser = async (req, res, next) => {
 export const getUserProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select('-Password');
-    
+
     if (user) {
       const userResponse = {
         User_id: user.User_id,
@@ -242,7 +242,7 @@ export const createTestUsers = async (req, res, next) => {
 
     for (const userData of testUsers) {
       const existingUser = await User.findOne({ 'Email id': userData['Email id'] });
-      
+
       if (existingUser) {
         skippedUsers.push(userData['Email id']);
         continue;
@@ -265,6 +265,143 @@ export const createTestUsers = async (req, res, next) => {
         created: createdUsers,
         skipped: skippedUsers,
         totalUsersInDB: totalUsers
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all users with pagination, search, and role filter
+// @route   GET /api/users?page=1&limit=10&role=Admin&search=john
+// @access  Protected (Super Admin only)
+export const getAllUsers = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const role = req.query.role;
+    const search = req.query.search;
+
+    // Build query
+    const query = {};
+
+    if (role) {
+      query.Role = role;
+    }
+
+    if (search) {
+      query.$or = [
+        { 'User Name': { $regex: search, $options: 'i' } },
+        { 'Email id': { $regex: search, $options: 'i' } },
+        { 'Mobile Number': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const users = await User.find(query)
+      .select('-Password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalRecords = await User.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      message: 'Users retrieved successfully',
+      data: users,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalRecords / limit),
+        totalRecords,
+        limit
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update user details
+// @route   PUT /api/users/:id
+// @access  Protected (Super Admin only)
+export const updateUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const updateData = {};
+
+    // Only allow updating specific fields
+    if (req.body['User Name']) updateData['User Name'] = req.body['User Name'];
+    if (req.body['Email id']) updateData['Email id'] = req.body['Email id'];
+    if (req.body['Mobile Number']) updateData['Mobile Number'] = req.body['Mobile Number'];
+    if (req.body.Role) updateData.Role = req.body.Role;
+    if (req.body.Image) updateData.Image = req.body.Image;
+    if (typeof req.body.status !== 'undefined') updateData.status = req.body.status;
+
+    // If password is provided, hash it
+    if (req.body.Password) {
+      const bcrypt = await import('bcryptjs');
+      const salt = await bcrypt.genSalt(10);
+      updateData.Password = await bcrypt.hash(req.body.Password, salt);
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-Password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete user
+// @route   DELETE /api/users/:id
+// @access  Protected (Super Admin only)
+export const deleteUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+
+    // Prevent deleting self
+    if (req.user._id.toString() === userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account'
+      });
+    }
+
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully',
+      data: {
+        deletedUser: {
+          _id: user._id,
+          'User Name': user['User Name'],
+          'Email id': user['Email id']
+        }
       }
     });
   } catch (error) {

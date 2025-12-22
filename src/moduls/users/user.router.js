@@ -2,7 +2,7 @@
 import express from 'express';
 import { protect, superAdminAuth } from '../../middleware/user.middleware.js';
 import { uploadUserImage, handleUploadError, processUploadedFile } from '../../middleware/gcs.upload.middleware.js';
-import { registerUser, loginUser, logoutUser, getUserProfile, getUserDropdown, createTestUsers } from './user.controller.js';
+import { registerUser, loginUser, logoutUser, getUserProfile, getUserDropdown, createTestUsers, getAllUsers, updateUser, deleteUser } from './user.controller.js';
 
 const router = express.Router();
 
@@ -501,7 +501,114 @@ router.get('/profile', protect, getUserProfile);
  */
 router.post('/create-test-users', protect, superAdminAuth, createTestUsers);
 
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Get all users with pagination, search, and role filter
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of users per page
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [Super Admin, Admin, Marketing, Dispatch head, Store Head, Transport Manager, Accountant, Document Manager, Guest]
+ *         description: Filter by role
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by user name, email, or mobile number
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *       401:
+ *         description: Not authorized
+ */
+router.get('/', protect, superAdminAuth, getAllUsers);
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Update user details
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               User Name:
+ *                 type: string
+ *               Email id:
+ *                 type: string
+ *               Mobile Number:
+ *                 type: string
+ *               Role:
+ *                 type: string
+ *               Image:
+ *                 type: string
+ *               status:
+ *                 type: boolean
+ *               Password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ *       404:
+ *         description: User not found
+ *       401:
+ *         description: Not authorized
+ */
+router.put('/:id', protect, superAdminAuth, updateUser);
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Delete user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *       404:
+ *         description: User not found
+ *       401:
+ *         description: Not authorized
+ */
+router.delete('/:id', protect, superAdminAuth, deleteUser);
 export default router;
-

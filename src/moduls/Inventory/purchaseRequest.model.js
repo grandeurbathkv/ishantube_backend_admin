@@ -180,7 +180,7 @@ const purchaseRequestSchema = new mongoose.Schema({
 });
 
 // Generate unique PR Number before saving
-purchaseRequestSchema.pre('save', async function(next) {
+purchaseRequestSchema.pre('save', async function (next) {
     try {
         if (this.isNew && !this.PR_Number) {
             const count = await this.constructor.countDocuments();
