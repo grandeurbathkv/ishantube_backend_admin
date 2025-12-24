@@ -179,14 +179,57 @@ const purchaseRequestSchema = new mongoose.Schema({
     timestamps: true
 });
 
+// Add indexes for better performance
+purchaseRequestSchema.index({ PR_Number: 1 }, { unique: true });
+purchaseRequestSchema.index({ created_by: 1 });
+purchaseRequestSchema.index({ status: 1 });
+purchaseRequestSchema.index({ PR_Date: -1 });
+
 // Generate unique PR Number before saving
 purchaseRequestSchema.pre('save', async function (next) {
     try {
         if (this.isNew && !this.PR_Number) {
-            const count = await this.constructor.countDocuments();
-            const prNumber = `PR${String(count + 1).padStart(6, '0')}`;
-            this.PR_Number = prNumber;
-            console.log('✅ Generated PR_Number:', prNumber);
+            let prNumber;
+            let attempts = 0;
+            const maxAttempts = 10;
+
+            while (attempts < maxAttempts) {
+                // Get the last PR by sorting in descending order
+                const lastPR = await this.constructor
+                    .findOne({})
+                    .sort({ PR_Number: -1 })
+                    .select('PR_Number')
+                    .lean();
+
+                let nextNumber = 1;
+
+                if (lastPR && lastPR.PR_Number) {
+                    // Extract the numeric part from PR_Number (e.g., "PR000004" -> 4)
+                    const currentNumber = parseInt(lastPR.PR_Number.replace('PR', ''));
+                    nextNumber = currentNumber + 1;
+                    console.log('🔷 Last PR_Number:', lastPR.PR_Number, '| Next Number:', nextNumber);
+                }
+
+                // Generate new PR_Number with leading zeros
+                prNumber = `PR${String(nextNumber).padStart(6, '0')}`;
+
+                // Check if this PR_Number already exists
+                const existingPR = await this.constructor.findOne({ PR_Number: prNumber });
+
+                if (!existingPR) {
+                    // PR_Number is unique, use it
+                    this.PR_Number = prNumber;
+                    console.log('✅ Generated unique PR_Number:', prNumber, `(attempt ${attempts + 1})`);
+                    break;
+                } else {
+                    console.log('⚠️ PR_Number', prNumber, 'already exists, retrying...', `(attempt ${attempts + 1})`);
+                    attempts++;
+                }
+            }
+
+            if (attempts >= maxAttempts) {
+                throw new Error('Failed to generate unique PR_Number after ' + maxAttempts + ' attempts');
+            }
         }
         next();
     } catch (error) {

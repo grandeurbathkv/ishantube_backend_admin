@@ -4,101 +4,115 @@ import { Product } from './product.model.js';
 
 // Create a new Purchase Request
 export const createPurchaseRequest = async (req, res) => {
-    try {
-        const userId = req.user?._id || req.user?.id;
-        const userName = req.user?.User_Name || 'Unknown User';
+    const maxRetries = 3;
+    let attempt = 0;
 
-        console.log('\n🔷 ==================== CREATE PR REQUEST START ====================');
-        console.log('🔷 User ID:', userId);
-        console.log('🔷 User Name:', userName);
-        console.log('🔷 Request body:', JSON.stringify(req.body, null, 2));
+    while (attempt < maxRetries) {
+        try {
+            attempt++;
+            const userId = req.user?._id || req.user?.id;
+            const userName = req.user?.User_Name || 'Unknown User';
 
-        // Validate user authentication
-        if (!userId) {
-            console.error('❌ User not authenticated');
-            return res.status(401).json({
-                success: false,
-                message: 'User authentication required'
+            console.log('\n🔷 ==================== CREATE PR REQUEST START (Attempt ' + attempt + ') ====================');
+            console.log('🔷 User ID:', userId);
+            console.log('🔷 User Name:', userName);
+            console.log('🔷 Request body:', JSON.stringify(req.body, null, 2));
+
+            // Validate user authentication
+            if (!userId) {
+                console.error('❌ User not authenticated');
+                return res.status(401).json({
+                    success: false,
+                    message: 'User authentication required'
+                });
+            }
+
+            // Validate required fields
+            if (!req.body.PR_Vendor || req.body.PR_Vendor.trim() === '') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'PR Vendor is required'
+                });
+            }
+
+            if (!req.body.items || !Array.isArray(req.body.items) || req.body.items.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'At least one item is required'
+                });
+            }
+
+            // Create PR data
+            const prData = {
+                PR_Date: req.body.PR_Date || new Date(),
+                PR_Vendor: req.body.PR_Vendor,
+                PI_Received: req.body.PI_Received || false,
+                items: req.body.items,
+                status: req.body.status || 'pending',
+                remarks: req.body.remarks || '',
+                created_by: userId,
+                created_by_name: userName
+            };
+
+            console.log('🔷 Creating PR with data:', {
+                ...prData,
+                items: `${prData.items.length} items`,
+                created_by: userId
             });
-        }
 
-        // Validate required fields
-        if (!req.body.PR_Vendor || req.body.PR_Vendor.trim() === '') {
-            return res.status(400).json({
-                success: false,
-                message: 'PR Vendor is required'
+            // Create new Purchase Request
+            const purchaseRequest = new PurchaseRequest(prData);
+            await purchaseRequest.save();
+
+            console.log('✅ Purchase Request created successfully:', purchaseRequest.PR_Number);
+            console.log('📋 PR Items count:', purchaseRequest.items.length);
+            console.log('🏢 PR Vendor:', purchaseRequest.PR_Vendor);
+            console.log('📅 PR Date:', purchaseRequest.PR_Date);
+            console.log('🔷 ==================== CREATE PR REQUEST END ====================\n');
+
+            return res.status(201).json({
+                success: true,
+                message: 'Purchase Request created successfully',
+                data: purchaseRequest
             });
-        }
 
-        if (!req.body.items || !Array.isArray(req.body.items) || req.body.items.length === 0) {
-            return res.status(400).json({
+        } catch (error) {
+            console.error('Error creating Purchase Request (Attempt ' + attempt + '):', error);
+            console.error('Error details:', error.message);
+
+            // If it's a duplicate key error and we haven't exhausted retries, try again
+            if (error.code === 11000 && attempt < maxRetries) {
+                console.log('⚠️ Duplicate PR_Number detected, retrying... (Attempt ' + (attempt + 1) + ' of ' + maxRetries + ')');
+                // Add a small delay before retrying
+                await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+                continue;
+            }
+
+            // If we've exhausted retries or it's a different error, return the error
+            if (error.code === 11000) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Failed to generate unique Purchase Request number after multiple attempts. Please try again.',
+                    error: error.message
+                });
+            }
+
+            if (error.name === 'ValidationError') {
+                console.error('Validation errors:', error.errors);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Validation failed',
+                    error: error.message,
+                    details: error.errors
+                });
+            }
+
+            return res.status(500).json({
                 success: false,
-                message: 'At least one item is required'
-            });
-        }
-
-        // Create PR data
-        const prData = {
-            PR_Date: req.body.PR_Date || new Date(),
-            PR_Vendor: req.body.PR_Vendor,
-            PI_Received: req.body.PI_Received || false,
-            items: req.body.items,
-            status: req.body.status || 'pending',
-            remarks: req.body.remarks || '',
-            created_by: userId,
-            created_by_name: userName
-        };
-
-        console.log('🔷 Creating PR with data:', {
-            ...prData,
-            items: `${prData.items.length} items`,
-            created_by: userId
-        });
-
-        // Create new Purchase Request
-        const purchaseRequest = new PurchaseRequest(prData);
-        await purchaseRequest.save();
-
-        console.log('✅ Purchase Request created successfully:', purchaseRequest.PR_Number);
-        console.log('📋 PR Items count:', purchaseRequest.items.length);
-        console.log('🏢 PR Vendor:', purchaseRequest.PR_Vendor);
-        console.log('📅 PR Date:', purchaseRequest.PR_Date);
-        console.log('🔷 ==================== CREATE PR REQUEST END ====================\n');
-
-        res.status(201).json({
-            success: true,
-            message: 'Purchase Request created successfully',
-            data: purchaseRequest
-        });
-
-    } catch (error) {
-        console.error('Error creating Purchase Request:', error);
-        console.error('Error details:', error.message);
-        console.error('Error stack:', error.stack);
-
-        if (error.code === 11000) {
-            return res.status(400).json({
-                success: false,
-                message: 'Purchase Request with this PR Number already exists',
+                message: 'Failed to create Purchase Request',
                 error: error.message
             });
         }
-
-        if (error.name === 'ValidationError') {
-            console.error('Validation errors:', error.errors);
-            return res.status(400).json({
-                success: false,
-                message: 'Validation failed',
-                error: error.message,
-                details: error.errors
-            });
-        }
-
-        res.status(500).json({
-            success: false,
-            message: 'Failed to create Purchase Request',
-            error: error.message
-        });
     }
 };
 
