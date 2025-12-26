@@ -5,12 +5,12 @@ export const recordDispatch = async (req, res) => {
         console.log('========================================');
         console.log('🟢 BACKEND DISPATCH Step 1: Record Dispatch API called');
         console.log('========================================');
-        
+
         const { id } = req.params;
         console.log('🟢 BACKEND Step 2: Order ID from params:', id);
         console.log('🟢 BACKEND Step 3: Order ID type:', typeof id);
         console.log('🟢 BACKEND Step 4: Order ID length:', id?.length);
-        
+
         const userId = req.user?._id || req.user?.id;
         const userName = req.user?.User_Name || 'Unknown User';
         console.log('🟢 BACKEND Step 5: User ID:', userId);
@@ -20,7 +20,7 @@ export const recordDispatch = async (req, res) => {
         console.log('🟢 BACKEND Step 8: Searching for Order in database...');
         const order = await Order.findById(id);
         console.log('🟢 BACKEND Step 9: Order found:', !!order);
-        
+
         if (!order) {
             console.log('🔴 BACKEND ERROR: Order not found in database');
             console.log('🔴 Searched for ID:', id);
@@ -45,7 +45,7 @@ export const recordDispatch = async (req, res) => {
         console.log('   - order.status:', `"${order.status}"`);
         console.log('   - Expected:', `"awaiting_dispatch"`);
         console.log('   - Match:', order.status === 'awaiting_dispatch');
-        
+
         if (order.status !== 'awaiting_dispatch') {
             console.log('🔴 BACKEND ERROR: Order is not in awaiting_dispatch status');
             console.log('🔴 Current status:', order.status);
@@ -75,12 +75,12 @@ export const recordDispatch = async (req, res) => {
         order.status = 'intrasite';
         order.updated_by = userId;
         order.updated_by_name = userName;
-        
+
         console.log('🟢 BACKEND Step 21: Saving order to database...');
         await order.save();
         console.log('✅ BACKEND Step 22: Order updated and saved successfully!');
         console.log('✅ BACKEND Step 23: New status:', order.status);
-        
+
         // Update related Purchase Request status to intrasite as well
         console.log('🟢 BACKEND Step 24: Updating related Purchase Request status...');
         try {
@@ -91,7 +91,7 @@ export const recordDispatch = async (req, res) => {
                 pr.status = 'intrasite';
                 await pr.save();
                 console.log('✅ PR status updated to intrasite');
-                
+
                 // Update Product Inventory: Add to In-Transit and subtract from Ordered
                 console.log('🟢 BACKEND Step 25: Updating Product Inventory Quantities...');
                 try {
@@ -101,13 +101,13 @@ export const recordDispatch = async (req, res) => {
                             const product = await Product.findById(item.product_id);
                             if (product) {
                                 const quantity = item.pi_received_quantity || item.quantity || 0;
-                                
+
                                 // Add to in-transit quantity
                                 product.Product_In_Transit_Quantity = (product.Product_In_Transit_Quantity || 0) + quantity;
-                                
+
                                 // Subtract from ordered quantity
                                 product.Product_Ordered_Quantity = Math.max(0, (product.Product_Ordered_Quantity || 0) - quantity);
-                                
+
                                 await product.save();
                                 console.log(`✅ Updated ${product.Prod_Name} (${product.Prod_Code}):`);
                                 console.log(`   - Added ${quantity} to in-transit qty. New: ${product.Product_In_Transit_Quantity}`);
@@ -126,7 +126,7 @@ export const recordDispatch = async (req, res) => {
             console.error('⚠️ Error updating PR status:', prUpdateError.message);
             // Don't fail if PR update fails
         }
-        
+
         console.log('========================================\n');
 
         res.status(200).json({
@@ -149,14 +149,17 @@ export const recordDispatch = async (req, res) => {
 import Order from './order.model.js';
 import mongoose from 'mongoose';
 import { Product } from '../Inventory/product.model.js';
+import { sendOrderApprovalNotification, sendOrderRejectionNotification } from '../../utils/notificationHelper.js';
 
 // Create a new order
 export const createOrder = async (req, res) => {
     try {
         const userId = req.user?._id || req.user?.id;
         const userName = req.user?.User_Name || 'Unknown User';
+        const userRole = req.user?.Role;
 
         console.log('Creating order with data:', req.body);
+        console.log('User Role:', userRole);
 
         // Validate required fields
         if (!req.body.company_id) {
@@ -180,6 +183,12 @@ export const createOrder = async (req, res) => {
             });
         }
 
+        // Determine approval status based on user role
+        let approvalStatus = 'not_required';
+        if (userRole === 'Marketing') {
+            approvalStatus = 'pending_approval';
+        }
+
         // Create order data
         const orderData = {
             ...req.body,
@@ -187,7 +196,8 @@ export const createOrder = async (req, res) => {
             created_by_name: userName,
             status: req.body.status || 'pending',
             payment_status: req.body.payment_status || 'pending',
-            balance_amount: req.body.net_amount_payable - (req.body.amount_paid || 0)
+            balance_amount: req.body.net_amount_payable - (req.body.amount_paid || 0),
+            approval_status: approvalStatus
         };
 
         // Create new order
@@ -199,10 +209,13 @@ export const createOrder = async (req, res) => {
         console.log('💰 Order balance_amount:', order.balance_amount);
         console.log('🏢 Order company_id:', order.company_id);
         console.log('👥 Order party_id:', order.party_id);
+        console.log('✔️ Approval status:', order.approval_status);
 
         res.status(201).json({
             success: true,
-            message: 'Order created successfully',
+            message: userRole === 'Marketing'
+                ? 'Order created successfully. Pending approval from Admin/Super Admin.'
+                : 'Order created successfully',
             data: order
         });
 
@@ -365,7 +378,7 @@ export const getOrderById = async (req, res) => {
 
         // Calculate inventory availability for each item
         const orderWithInventory = order.toObject();
-        
+
         // First, calculate consolidated quantities for each product code
         const consolidatedQuantities = {};
         for (const group of orderWithInventory.groups) {
@@ -379,45 +392,45 @@ export const getOrderById = async (req, res) => {
                 consolidatedQuantities[productCode] += balanceQty;
             }
         }
-        
+
         for (let groupIndex = 0; groupIndex < orderWithInventory.groups.length; groupIndex++) {
             const group = orderWithInventory.groups[groupIndex];
-            
+
             for (let itemIndex = 0; itemIndex < group.items.length; itemIndex++) {
                 const item = group.items[itemIndex];
-                
+
                 try {
                     // Get product from inventory
                     const product = await Product.findById(item.product_id);
-                    
+
                     if (product) {
                         // Calculate available stock (Fresh Stock + Opening Stock - Damage Stock)
                         // Sample stock is NOT deducted as it's tracked separately
-                        const totalAvailableStock = 
-                            (product.Product_Fresh_Stock || 0) + 
-                            (product.Product_opening_stock || 0) - 
+                        const totalAvailableStock =
+                            (product.Product_Fresh_Stock || 0) +
+                            (product.Product_opening_stock || 0) -
                             (product.Product_Damage_stock || 0);
-                        
+
                         // Update item with inventory data
                         item.available_quantity = Math.max(0, totalAvailableStock);
                         item.consolidated_quantity = consolidatedQuantities[item.product_code] || 0;
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - item.dispatched_quantity;
-                        
+
                         // Add product type for filtering
                         item.product_type = product.Product_Type; // 'Rough' or 'Trim'
-                        
+
                         // Stock breakdown by type
                         item.fresh_stock = product.Product_Fresh_Stock || 0;
                         item.sample_stock = product.Product_sample_stock || 0;
                         item.raf_stock = product.Prod_Showroom_stock || 0; // RAF = Showroom stock
                         item.trim_stock = 0; // Will be set based on product type below
-                        
+
                         // Set trim_stock only for products with Product_Type = 'Trim'
                         if (product.Product_Type === 'Trim') {
                             item.trim_stock = product.Product_Fresh_Stock || 0;
                         }
-                        
+
                         // Determine availability status based on consolidated quantity vs available quantity
                         // Logic: If consolidated_quantity > available_quantity, status is 'partial'
                         if (item.consolidated_quantity > item.available_quantity) {
@@ -501,7 +514,7 @@ export const updateOrder = async (req, res) => {
         // Recalculate balance if amount_paid is updated
         if (req.body.amount_paid !== undefined) {
             updateData.balance_amount = order.net_amount_payable - req.body.amount_paid;
-            
+
             // Update payment status
             if (updateData.balance_amount <= 0) {
                 updateData.payment_status = 'paid';
@@ -555,7 +568,7 @@ export const updateOrderStatus = async (req, res) => {
 
         const order = await Order.findByIdAndUpdate(
             id,
-            { 
+            {
                 status,
                 updated_by: req.user?._id || req.user?.id,
                 updated_by_name: req.user?.User_Name || 'Unknown User'
@@ -681,7 +694,7 @@ export const getOrderStats = async (req, res) => {
         const confirmedOrders = await Order.countDocuments({ status: 'confirmed' });
         const deliveredOrders = await Order.countDocuments({ status: 'delivered' });
         const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
-        
+
         const totalRevenue = await Order.aggregate([
             { $match: { status: { $ne: 'cancelled' } } },
             { $group: { _id: null, total: { $sum: '$net_amount_payable' } } }
@@ -764,7 +777,7 @@ export const cancelOrder = async (req, res) => {
         // CONDITION 1: Check if any items are dispatched
         let totalOrderQty = 0;
         let totalDispatchedQty = 0;
-        
+
         order.groups.forEach(group => {
             group.items.forEach(item => {
                 totalOrderQty += item.quantity;
@@ -831,7 +844,7 @@ export const cancelOrder = async (req, res) => {
                 const adjustmentAmount = paymentReceived;
                 targetOrder.amount_paid = (targetOrder.amount_paid || 0) + adjustmentAmount;
                 targetOrder.balance_amount = Math.max(0, targetOrder.net_amount_payable - targetOrder.amount_paid);
-                
+
                 // Update payment status of target order
                 if (targetOrder.balance_amount === 0) {
                     targetOrder.payment_status = 'paid';
@@ -881,7 +894,7 @@ export const cancelOrder = async (req, res) => {
                 group.items.forEach(item => {
                     // Only keep dispatched items in calculation
                     const dispatchedQty = item.dispatched_quantity || 0;
-                    
+
                     if (dispatchedQty > 0) {
                         // Recalculate based on dispatched quantity
                         const itemTotal = dispatchedQty * item.net_rate;
@@ -912,7 +925,7 @@ export const cancelOrder = async (req, res) => {
         } else {
             // Full cancellation - set all quantities and amounts to 0
             console.log('🔴 Full cancellation - zeroing all values');
-            
+
             order.groups.forEach(group => {
                 group.items.forEach(item => {
                     item.balance_quantity = 0;
@@ -1112,7 +1125,7 @@ export const getPartialUnavailableOrders = async (req, res) => {
                 }
             }
         }
-        
+
         console.log('\n📊 Consolidated Quantities across all filtered orders:', consolidatedQuantities);
 
         for (const order of allOrders) {
@@ -1138,13 +1151,13 @@ export const getPartialUnavailableOrders = async (req, res) => {
                         if (product) {
                             console.log(`  🔸 Product found: ${item.product_code} | Product Brand: '${product.Product_Brand}' | Filter Brand: '${brand}'`);
                             console.log(`  🔸 Brand check: brand='${brand}' | trim='${brand?.trim()}' | isEmpty=${!brand || brand.trim() === ''}`);
-                            
+
                             // Apply brand filter if specified (and not empty string)
                             if (brand && brand.trim() !== '' && product.Product_Brand !== brand) {
                                 console.log(`  ❌ SKIPPING - Brand mismatch: Product='${product.Product_Brand}' vs Filter='${brand}'`);
                                 continue;
                             }
-                            
+
                             if (brand && brand.trim() !== '') {
                                 console.log(`  ✅ INCLUDED - Brand match: Product='${product.Product_Brand}' matches Filter='${brand}'`);
                             } else {
@@ -1153,7 +1166,7 @@ export const getPartialUnavailableOrders = async (req, res) => {
 
                             // Calculate available stock (Fresh Stock)
                             const freshStock = product.Product_Fresh_Stock || 0;
-                            
+
                             // Get consolidated quantity from ALL filtered orders for this product code
                             const consolidatedQty = consolidatedQuantities[item.product_code] || 0;
 
@@ -1168,7 +1181,7 @@ export const getPartialUnavailableOrders = async (req, res) => {
                             item.dispatched_quantity = item.dispatched_quantity || 0;
                             item.balance_quantity = item.quantity - item.dispatched_quantity;
                             item.product_brand = product.Product_Brand;
-                            
+
                             console.log(`    📊 Product: ${item.product_code} | Consolidated Qty (all filtered orders): ${consolidatedQty} | Fresh Stock: ${freshStock} | Unavailable: ${unavailableQty}`);
 
                             // Determine availability status
@@ -1225,7 +1238,7 @@ export const getPartialUnavailableOrders = async (req, res) => {
 
         // Apply pagination to filtered results
         const paginatedOrders = ordersWithPartialUnavailable.slice(skip, skip + parseInt(limit));
-        
+
         console.log(`📦 Returning ${paginatedOrders.length} orders for current page`);
         console.log(`📦 Order IDs being returned:`, paginatedOrders.map(o => `${o.order_no} (${o._id})`));
         console.log('🔍 ==================== BACKEND REQUEST END ====================\n');
@@ -1287,7 +1300,7 @@ export const exportOrdersToExcel = async (req, res) => {
 
         // Create Excel workbook data
         const excelData = [];
-        
+
         orders.forEach(order => {
             // Add order header
             excelData.push({
@@ -1328,7 +1341,7 @@ export const exportOrdersToExcel = async (req, res) => {
                     }
                 });
             }
-            
+
             // Add empty row between orders
             excelData.push({});
         });
@@ -1430,10 +1443,186 @@ export const sendEmailToVendor = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Error sending email:', error);
+        console.error('❌ Error sending vendor email:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to send email',
+            message: 'Failed to send email to vendor',
+            error: error.message
+        });
+    }
+};
+
+// Approve order (Admin/Super Admin only)
+export const approveOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { approval_remarks } = req.body;
+        const userId = req.user?._id || req.user?.id;
+        const userName = req.user?.User_Name || 'Unknown User';
+        const userRole = req.user?.Role;
+
+        console.log('Approving order:', id);
+        console.log('User Role:', userRole);
+        console.log('User Name:', userName);
+
+        // Check if user has permission to approve
+        if (userRole !== 'Admin' && userRole !== 'Super Admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only Admin or Super Admin can approve orders'
+            });
+        }
+
+        // Find the order
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Check if order is pending approval
+        if (order.approval_status !== 'pending_approval') {
+            return res.status(400).json({
+                success: false,
+                message: `Order is not pending approval. Current status: ${order.approval_status}`
+            });
+        }
+
+        // Update approval status
+        order.approval_status = 'approved';
+        order.approved_by = userId;
+        order.approved_by_name = userName;
+        order.approved_at = new Date();
+        if (approval_remarks) {
+            order.approval_remarks = approval_remarks;
+        }
+
+        await order.save();
+
+        console.log('✅ Order approved successfully:', order.order_no);
+        console.log('✔️ Approved by:', userName);
+
+        // Send notifications (chat + WhatsApp) - Non-blocking
+        const io = req.app.get('io');
+        if (io) {
+            sendOrderApprovalNotification({
+                order,
+                approvedBy: userName,
+                io
+            }).then(result => {
+                if (result.success) {
+                    console.log('✅ Approval notifications sent successfully');
+                } else {
+                    console.log('⚠️ Failed to send notifications:', result.message);
+                }
+            }).catch(error => {
+                console.error('❌ Error in notification process:', error);
+            });
+        } else {
+            console.log('⚠️ Socket.IO not available, skipping real-time notifications');
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Order approved successfully',
+            data: order
+        });
+
+    } catch (error) {
+        console.error('❌ Error approving order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to approve order',
+            error: error.message
+        });
+    }
+};
+
+// Reject order (Admin/Super Admin only)
+export const rejectOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { approval_remarks } = req.body;
+        const userId = req.user?._id || req.user?.id;
+        const userName = req.user?.User_Name || 'Unknown User';
+        const userRole = req.user?.Role;
+
+        console.log('Rejecting order:', id);
+        console.log('User Role:', userRole);
+
+        // Check if user has permission to reject
+        if (userRole !== 'Admin' && userRole !== 'Super Admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only Admin or Super Admin can reject orders'
+            });
+        }
+
+        // Find the order
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Check if order is pending approval
+        if (order.approval_status !== 'pending_approval') {
+            return res.status(400).json({
+                success: false,
+                message: `Order is not pending approval. Current status: ${order.approval_status}`
+            });
+        }
+
+        // Update approval status
+        order.approval_status = 'rejected';
+        order.approved_by = userId;
+        order.approved_by_name = userName;
+        order.approved_at = new Date();
+        if (approval_remarks) {
+            order.approval_remarks = approval_remarks;
+        }
+
+        await order.save();
+
+        console.log('✅ Order rejected successfully:', order.order_no);
+        console.log('❌ Rejected by:', userName);
+
+        // Send notifications (chat + WhatsApp) - Non-blocking
+        const io = req.app.get('io');
+        if (io) {
+            sendOrderRejectionNotification({
+                order,
+                rejectedBy: userName,
+                remarks: approval_remarks,
+                io
+            }).then(result => {
+                if (result.success) {
+                    console.log('✅ Rejection notifications sent successfully');
+                } else {
+                    console.log('⚠️ Failed to send notifications:', result.message);
+                }
+            }).catch(error => {
+                console.error('❌ Error in notification process:', error);
+            });
+        } else {
+            console.log('⚠️ Socket.IO not available, skipping real-time notifications');
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Order rejected successfully',
+            data: order
+        });
+
+    } catch (error) {
+        console.error('❌ Error rejecting order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reject order',
             error: error.message
         });
     }

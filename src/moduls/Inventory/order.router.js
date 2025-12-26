@@ -43,6 +43,12 @@ router.patch('/:id/status', orderController.updateOrderStatus);
 // Update payment status
 router.patch('/:id/payment', orderController.updatePaymentStatus);
 
+// Approve order (Admin/Super Admin only)
+router.patch('/:id/approve', orderController.approveOrder);
+
+// Reject order (Admin/Super Admin only)
+router.patch('/:id/reject', orderController.rejectOrder);
+
 // Cancel order
 router.patch('/:id/cancel', orderController.cancelOrder);
 

@@ -64,7 +64,7 @@ const orderItemSchema = new mongoose.Schema({
     },
     balance_quantity: {
         type: Number,
-        default: function() {
+        default: function () {
             return this.quantity;
         }
     },
@@ -139,14 +139,14 @@ const orderSchema = new mongoose.Schema({
     expected_delivery_date: {
         type: Date
     },
-    
+
     // Reference to Quotation
     quotation_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Quotation'
     },
     quotation_no: String,
-    
+
     // Company Information
     company_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -156,7 +156,7 @@ const orderSchema = new mongoose.Schema({
     company_name: String,
     company_address: String,
     company_gst: String,
-    
+
     // Party Information
     party_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -175,7 +175,7 @@ const orderSchema = new mongoose.Schema({
     party_contact_person: String,
     party_mobile: String,
     party_email: String,
-    
+
     // Site Information (Optional)
     site_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -185,10 +185,10 @@ const orderSchema = new mongoose.Schema({
     site_address: String,
     site_contact_person: String,
     site_mobile: String,
-    
+
     // Order Items
     groups: [orderGroupSchema],
-    
+
     // Financial Details
     grand_total: {
         type: Number,
@@ -224,14 +224,28 @@ const orderSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    
+
     // Order Status
     status: {
         type: String,
         enum: ['pending', 'partially pending', 'awaiting_dispatch', 'intrasite', 'completed', 'cancelled'],
         default: 'pending'
     },
-    
+
+    // Approval Status (for Marketing role orders)
+    approval_status: {
+        type: String,
+        enum: ['not_required', 'pending_approval', 'approved', 'rejected'],
+        default: 'not_required'
+    },
+    approved_by: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    approved_by_name: String,
+    approved_at: Date,
+    approval_remarks: String,
+
     // Payment Information
     payment_status: {
         type: String,
@@ -251,11 +265,11 @@ const orderSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    
+
     // Notes and Instructions
     notes: String,
     internal_notes: String,
-    
+
     // Cancellation fields
     cancellation_reason: String,
     cancelled_by: {
@@ -272,7 +286,7 @@ const orderSchema = new mongoose.Schema({
         amount: Number,
         target_order_no: String
     },
-    
+
     // Tracking
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
@@ -305,7 +319,7 @@ orderSchema.index({ status: 1 });
 orderSchema.index({ payment_status: 1 });
 
 // Auto-generate order number
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('save', async function (next) {
     if (!this.order_no) {
         const count = await mongoose.model('Order').countDocuments();
         const orderNumber = `ORD${String(count + 1).padStart(6, '0')}`;
