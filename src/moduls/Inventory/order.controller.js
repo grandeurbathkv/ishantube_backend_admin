@@ -149,7 +149,7 @@ export const recordDispatch = async (req, res) => {
 import Order from './order.model.js';
 import mongoose from 'mongoose';
 import { Product } from '../Inventory/product.model.js';
-import { sendOrderApprovalNotification, sendOrderRejectionNotification } from '../../utils/notificationHelper.js';
+import { sendOrderApprovalNotification, sendOrderRejectionNotification, sendNewOrderNotification } from '../../utils/notificationHelper.js';
 
 // Create a new order
 export const createOrder = async (req, res) => {
@@ -210,6 +210,21 @@ export const createOrder = async (req, res) => {
         console.log('🏢 Order company_id:', order.company_id);
         console.log('👥 Order party_id:', order.party_id);
         console.log('✔️ Approval status:', order.approval_status);
+
+        // If Marketing role created the order, send notification to Admin/Super Admin
+        if (userRole === 'Marketing' && approvalStatus === 'pending_approval') {
+            console.log('🔔 Sending notifications to Admin/Super Admin users...');
+            const io = req.app.get('io');
+
+            // Send notifications in background (non-blocking)
+            sendNewOrderNotification({
+                order: order,
+                createdByName: userName,
+                io: io
+            }).catch(error => {
+                console.error('❌ Failed to send new order notifications:', error);
+            });
+        }
 
         res.status(201).json({
             success: true,

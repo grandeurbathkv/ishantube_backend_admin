@@ -226,6 +226,78 @@ export const sendOrderApprovalNotification = async ({ order, approvedBy, io }) =
 };
 
 /**
+ * Send new order creation notification to all Admin and Super Admin users
+ * @param {Object} params - Notification parameters
+ * @param {Object} params.order - Order object
+ * @param {string} params.createdByName - Name of person who created the order
+ * @param {Object} params.io - Socket.io instance
+ */
+export const sendNewOrderNotification = async ({ order, createdByName, io }) => {
+    try {
+        console.log('🔔 Sending new order creation notifications to Admin/Super Admin...');
+        console.log('🔔 Order ID:', order._id);
+        console.log('🔔 Order No:', order.order_no);
+        console.log('🔔 Created by:', createdByName);
+
+        // Find all Admin and Super Admin users
+        const adminUsers = await User.find({
+            Role: { $in: ['Admin', 'Super Admin'] }
+        });
+
+        if (!adminUsers || adminUsers.length === 0) {
+            console.log('⚠️ No Admin or Super Admin users found');
+            return {
+                success: false,
+                message: 'No Admin or Super Admin users found'
+            };
+        }
+
+        console.log(`✅ Found ${adminUsers.length} Admin/Super Admin users`);
+
+        // Prepare notification message
+        const chatMessage = `🆕 New order created by ${createdByName} - Pending Approval!\n\n` +
+            `Order No: ${order.order_no}\n` +
+            `Party: ${order.party_name}\n` +
+            `Amount: ₹${order.net_amount_payable?.toLocaleString('en-IN')}\n` +
+            `Date: ${new Date(order.order_date).toLocaleDateString('en-IN')}\n\n` +
+            `Please review and approve/reject this order.`;
+
+        // Send notification to each Admin/Super Admin
+        const notificationPromises = adminUsers.map(async (admin) => {
+            console.log(`📧 Sending notification to ${admin['User Name']} (${admin.Role})`);
+
+            return await sendChatNotification({
+                userId: admin._id.toString(),
+                message: chatMessage,
+                io
+            });
+        });
+
+        const results = await Promise.all(notificationPromises);
+
+        const successCount = results.filter(r => r.success).length;
+        console.log(`✅ Successfully sent ${successCount}/${adminUsers.length} notifications`);
+
+        return {
+            success: true,
+            message: `Notifications sent to ${successCount} admin users`,
+            data: {
+                totalAdmins: adminUsers.length,
+                successCount: successCount,
+                results: results
+            }
+        };
+    } catch (error) {
+        console.error('❌ Error sending new order notifications:', error);
+        return {
+            success: false,
+            message: 'Failed to send notifications',
+            error: error.message
+        };
+    }
+};
+
+/**
  * Send order rejection notification to user (both chat and WhatsApp)
  * @param {Object} params - Notification parameters
  * @param {Object} params.order - Order object
