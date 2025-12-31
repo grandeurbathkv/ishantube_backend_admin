@@ -29,8 +29,6 @@ console.log('GCS_PROJECT_ID:', process.env.GCS_PROJECT_ID || '❌ NOT SET');
 console.log('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || '✅ NOT SET (using default Cloud auth)');
 console.log('==============================================');
 
-connectDB();
-
 const app = express();
 const httpServer = createServer(app);
 
@@ -123,8 +121,17 @@ app.use('/api', routes);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
+
+// Start server first (required for Cloud Run health checks)
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server is running on port ${PORT}`);
   console.log(`📄 API docs available at http://localhost:${PORT}/api-docs`);
   console.log(`🔌 Socket.IO server is running and ready for connections`);
+  
+  // Connect to database after server is listening
+  connectDB().catch(err => {
+    console.error('Failed to connect to MongoDB:', err.message);
+    // Don't exit - let the server run even if DB connection fails initially
+    // This allows Cloud Run health checks to pass
+  });
 });
