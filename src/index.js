@@ -10,17 +10,6 @@ import routes from './routers/index.js';
 import errorHandler from './middleware/errorhanddling.js';
 import { initializeSocketIO } from './socket.js';
 
-// Catch unhandled errors to prevent crashes
-process.on('uncaughtException', (error) => {
-  console.error('💥 UNCAUGHT EXCEPTION:', error);
-  // Don't exit - keep the server running
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
-  // Don't exit - keep the server running
-});
-
 // Only load .env in development (not in production/Cloud Run)
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
@@ -40,6 +29,8 @@ console.log('GCS_PROJECT_ID:', process.env.GCS_PROJECT_ID || '❌ NOT SET');
 console.log('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || '✅ NOT SET (using default Cloud auth)');
 console.log('==============================================');
 
+connectDB();
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -52,14 +43,8 @@ const io = new Server(httpServer, {
   }
 });
 
-// Initialize Socket.IO handlers (wrap in try-catch for safety)
-try {
-  initializeSocketIO(io);
-  console.log('✅ Socket.IO initialized successfully');
-} catch (error) {
-  console.error('⚠️ Socket.IO initialization error:', error.message);
-  // Continue without Socket.IO if it fails
-}
+// Initialize Socket.IO handlers
+initializeSocketIO(io);
 
 // Make io accessible in routes
 app.set('io', io);
@@ -138,27 +123,8 @@ app.use('/api', routes);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
-
-console.log(`🔄 Attempting to start server on port ${PORT}...`);
-
-// Start server first (required for Cloud Run health checks)
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server is LISTENING on 0.0.0.0:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`✅ Server is running on port ${PORT}`);
   console.log(`📄 API docs available at http://localhost:${PORT}/api-docs`);
   console.log(`🔌 Socket.IO server is running and ready for connections`);
-  
-  // Connect to database after server is listening
-  connectDB().catch(err => {
-    console.error('⚠️ Failed to connect to MongoDB:', err.message);
-    // Don't exit - let the server run even if DB connection fails initially
-    // This allows Cloud Run health checks to pass
-  });
-});
-
-// Add error handler for server startup failures
-httpServer.on('error', (error) => {
-  console.error('💥 SERVER ERROR:', error);
-  if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use`);
-  }
 });
