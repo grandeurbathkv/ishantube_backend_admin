@@ -28,10 +28,6 @@ RUN mkdir -p uploads/architects \
 # Expose the port your app runs on
 EXPOSE 8080
 
-# Health check to ensure container is responsive
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8080/', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
-
 # Set environment variables for Cloud Run
 ENV PORT=8080
 ENV NODE_ENV=production
