@@ -5,12 +5,14 @@ import {
   getPartyAnalytics,
   getAllPartiesDropdown,
   uploadPartiesFromExcel,
-  generatePartiesPDF
+  generatePartiesPDF,
+  sendPartyOTP,
+  verifyPartyOTP
 } from './party.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { 
-  uploadExcelFile, 
-  handleUploadError 
+import {
+  uploadExcelFile,
+  handleUploadError
 } from '../../middleware/gcs.upload.middleware.js';
 
 const router = express.Router();
@@ -653,6 +655,8 @@ router.get('/analytics', protect, getPartyAnalytics);
  */
 router.get("/dropdown/all", protect, getAllPartiesDropdown);
 
-
+// OTP Routes (Public - No authentication required)
+router.post('/send-otp', sendPartyOTP);
+router.post('/verify-otp', verifyPartyOTP);
 
 export default router;

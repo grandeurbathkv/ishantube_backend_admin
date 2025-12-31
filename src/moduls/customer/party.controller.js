@@ -4,6 +4,14 @@ import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import {
+  generateOTP,
+  sendWhatsAppOTP,
+  validatePhoneNumber,
+  storeOTP,
+  verifyOTP as verifyStoredOTP,
+  clearOTP
+} from '../../utils/whatsappHelper.js';
 
 // ========== Main Party Management (Consolidated CRUD) ==========
 const manageParties = async (req, res) => {
@@ -146,7 +154,7 @@ const manageParties = async (req, res) => {
           } = req.query;
 
           let filter = {};
-          
+
           // Search functionality
           if (search) {
             filter.$or = [
@@ -185,7 +193,7 @@ const manageParties = async (req, res) => {
           }
 
           const skip = (parseInt(page) - 1) * parseInt(limit);
-          
+
           let query = Party.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -210,7 +218,7 @@ const manageParties = async (req, res) => {
               const partySites = await Site.find({ Site_party_id: party.Party_id })
                 .select('Site_id Site_Billing_Name Contact_Person Mobile_Number Site_Address Site_city Site_State')
                 .sort({ createdAt: -1 });
-              
+
               return {
                 ...party.toObject(),
                 sites: partySites,
@@ -221,7 +229,7 @@ const manageParties = async (req, res) => {
             // Just add site count for each party
             partiesWithSites = await Promise.all(parties.map(async (party) => {
               const siteCount = await Site.countDocuments({ Site_party_id: party.Party_id });
-              
+
               return {
                 ...party.toObject(),
                 sitesCount: siteCount
@@ -259,7 +267,7 @@ const manageParties = async (req, res) => {
         }
 
         const updateData = req.body;
-        
+
         // Auto-create city and state if updated
         if (updateData.Party_State) {
           await PartyState.getOrCreate(updateData.Party_State, userId);
@@ -273,9 +281,9 @@ const manageParties = async (req, res) => {
           updateData,
           { new: true, runValidators: true }
         )
-        .populate('Party_default_User_id', 'name email')
-        .populate('channelPartnerDetails', 'CP_Name')
-        .populate('architectDetails', 'Arch_Name');
+          .populate('Party_default_User_id', 'name email')
+          .populate('channelPartnerDetails', 'CP_Name')
+          .populate('architectDetails', 'Arch_Name');
 
         if (!updatedParty) {
           return res.status(404).json({
@@ -348,11 +356,11 @@ const manageDropdownData = async (req, res) => {
         if (type === 'cities') {
           const { state, search } = req.query;
           let filter = {};
-          
+
           if (state) {
             filter.state = { $regex: state, $options: 'i' };
           }
-          
+
           if (search) {
             filter.name = { $regex: search, $options: 'i' };
           }
@@ -371,7 +379,7 @@ const manageDropdownData = async (req, res) => {
         } else {
           const { search } = req.query;
           let filter = {};
-          
+
           if (search) {
             filter.name = { $regex: search, $options: 'i' };
           }
@@ -409,9 +417,9 @@ const manageDropdownData = async (req, res) => {
 
           // Auto-create state if doesn't exist
           await PartyState.getOrCreate(state, userId);
-          
+
           const newCity = await PartyCity.getOrCreate(name, state, userId);
-          
+
           return res.status(201).json({
             success: true,
             message: 'City created successfully',
@@ -419,7 +427,7 @@ const manageDropdownData = async (req, res) => {
           });
         } else {
           const newState = await PartyState.getOrCreate(name, userId);
-          
+
           return res.status(201).json({
             success: true,
             message: 'State created successfully',
@@ -492,7 +500,7 @@ const manageDropdownData = async (req, res) => {
           if (stateDoc) {
             const stateInUse = await Party.findOne({ Party_State: stateDoc.name });
             const cityInState = await PartyCity.findOne({ state: stateDoc.name });
-            
+
             if (stateInUse || cityInState) {
               return res.status(400).json({
                 success: false,
@@ -614,7 +622,7 @@ const getAllPartiesDropdown = async (req, res) => {
   try {
     console.log('🔵 PARTY DROPDOWN - Step 1: API Called');
     console.log('🔵 PARTY DROPDOWN - Step 2: Query params:', req.query);
-    
+
     const { search, limit = 100 } = req.query;
 
     let filter = {};
@@ -673,7 +681,7 @@ const getAllPartiesDropdown = async (req, res) => {
 const uploadPartiesFromExcel = async (req, res) => {
   try {
     console.log('Excel upload initiated for Parties...');
-    
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -683,7 +691,7 @@ const uploadPartiesFromExcel = async (req, res) => {
 
     const allowedExtensions = ['.xlsx', '.xls'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExtension)) {
       return res.status(400).json({
         success: false,
@@ -692,12 +700,12 @@ const uploadPartiesFromExcel = async (req, res) => {
     }
 
     console.log('Reading Excel file...');
-    
+
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
+
     if (!jsonData || jsonData.length === 0) {
       return res.status(400).json({
         success: false,
@@ -872,7 +880,7 @@ const uploadPartiesFromExcel = async (req, res) => {
         // Auto-create city and state if they don't exist
         const cityName = Party_city.toString().trim();
         const stateName = Party_State.toString().trim();
-        
+
         let existingCity = await PartyCity.findOne({ name: cityName });
         if (!existingCity) {
           existingCity = await PartyCity.create({
@@ -922,7 +930,7 @@ const uploadPartiesFromExcel = async (req, res) => {
 
         // Create Party
         const newParty = await Party.create(partyData);
-        
+
         results.successful.push({
           row: rowNumber,
           data: newParty
@@ -972,7 +980,7 @@ const uploadPartiesFromExcel = async (req, res) => {
 
   } catch (error) {
     console.error('Excel upload error for Parties:', error);
-    
+
     if (req.file && req.file.path) {
       try {
         fs.unlinkSync(req.file.path);
@@ -980,7 +988,7 @@ const uploadPartiesFromExcel = async (req, res) => {
         console.warn('Could not delete uploaded file after error:', cleanupError.message);
       }
     }
-    
+
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -998,12 +1006,12 @@ const generatePartiesPDF = async (req, res) => {
     console.log('Method:', req.method);
     console.log('URL:', req.url);
     console.log('Query params:', req.query);
-    
+
     // Dynamic import of jsPDF
     const jsPDFModule = await import('jspdf');
     const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
     await import('jspdf-autotable');
-    
+
     // Get query parameters for filtering
     const { search, city, state } = req.query;
     let filter = {};
@@ -1137,11 +1145,104 @@ const generatePartiesPDF = async (req, res) => {
   }
 };
 
+// @desc    Send OTP to Party's WhatsApp number
+// @route   POST /api/party/send-otp
+// @access  Public
+const sendPartyOTP = async (req, res) => {
+  try {
+    const { mobileNumber } = req.body;
+
+    if (!mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required'
+      });
+    }
+
+    if (!validatePhoneNumber(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid mobile number format. Please enter a 10-digit number'
+      });
+    }
+
+    const existingParty = await Party.findOne({ Mobile_Number: mobileNumber });
+    if (existingParty) {
+      return res.status(409).json({
+        success: false,
+        message: 'This mobile number is already registered with another Party'
+      });
+    }
+
+    const otp = generateOTP();
+    storeOTP(mobileNumber, otp);
+    await sendWhatsAppOTP(mobileNumber, otp, 'Party');
+
+    console.log(`OTP sent to ${mobileNumber}: ${otp}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully to your WhatsApp number',
+      data: { mobileNumber }
+    });
+
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send OTP. Please try again.'
+    });
+  }
+};
+
+// @desc    Verify OTP for Party registration
+// @route   POST /api/party/verify-otp
+// @access  Public
+const verifyPartyOTP = async (req, res) => {
+  try {
+    const { mobileNumber, otp } = req.body;
+
+    if (!mobileNumber || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number and OTP are required'
+      });
+    }
+
+    const isValid = verifyStoredOTP(mobileNumber, otp);
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP. Please request a new OTP.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        mobileNumber,
+        verified: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP. Please try again.'
+    });
+  }
+};
+
 export {
   manageParties,
   manageDropdownData,
   getPartyAnalytics,
   getAllPartiesDropdown,
   uploadPartiesFromExcel,
-  generatePartiesPDF
+  generatePartiesPDF,
+  sendPartyOTP,
+  verifyPartyOTP
 };

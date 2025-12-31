@@ -9,14 +9,16 @@ import {
   manageArchitectCategories,
   getArchitectNames,
   uploadArchitectsFromExcel,
-  generateArchitectsPDF
+  generateArchitectsPDF,
+  sendArchitectOTP,
+  verifyArchitectOTP
 } from './architect.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { 
-  uploadArchitectImage, 
-  processUploadedFile, 
-  uploadExcelFile, 
-  handleUploadError 
+import {
+  uploadArchitectImage,
+  processUploadedFile,
+  uploadExcelFile,
+  handleUploadError
 } from '../../middleware/gcs.upload.middleware.js';
 
 const router = express.Router();
@@ -790,5 +792,8 @@ router.route('/dropdown').get(protect, manageDropdownData).post(protect, manageD
  *         description: Not authorized
  */
 
+// OTP Routes (Public - No authentication required)
+router.post('/send-otp', sendArchitectOTP);
+router.post('/verify-otp', verifyArchitectOTP);
 
 export default router;

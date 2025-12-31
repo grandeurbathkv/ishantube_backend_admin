@@ -3,6 +3,14 @@ import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import {
+  generateOTP,
+  sendWhatsAppOTP,
+  validatePhoneNumber,
+  storeOTP,
+  verifyOTP as verifyStoredOTP,
+  clearOTP
+} from '../../utils/whatsappHelper.js';
 
 // ========== Main Site Management (Consolidated CRUD) ==========
 const manageSites = async (req, res) => {
@@ -116,7 +124,7 @@ const manageSites = async (req, res) => {
           } = req.query;
 
           let filter = {};
-          
+
           // Search functionality
           if (search) {
             filter.$or = [
@@ -163,7 +171,7 @@ const manageSites = async (req, res) => {
           }
 
           const skip = (parseInt(page) - 1) * parseInt(limit);
-          
+
           let query = Site.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -213,7 +221,7 @@ const manageSites = async (req, res) => {
         }
 
         const updateData = req.body;
-        
+
         // Auto-create city and state if updated
         if (updateData.Site_State) {
           await SiteState.getOrCreate(updateData.Site_State, userId);
@@ -227,9 +235,9 @@ const manageSites = async (req, res) => {
           updateData,
           { new: true, runValidators: true }
         )
-        .populate('Site_User_id', 'name email')
-        .populate('partyDetails', 'Party_Billing_Name Contact_Person')
-        .populate('channelPartnerDetails', 'CP_Name');
+          .populate('Site_User_id', 'name email')
+          .populate('partyDetails', 'Party_Billing_Name Contact_Person')
+          .populate('channelPartnerDetails', 'CP_Name');
 
         if (!updatedSite) {
           return res.status(404).json({
@@ -302,11 +310,11 @@ const manageSiteDropdownData = async (req, res) => {
         if (type === 'cities') {
           const { state, search } = req.query;
           let filter = {};
-          
+
           if (state) {
             filter.state = { $regex: state, $options: 'i' };
           }
-          
+
           if (search) {
             filter.name = { $regex: search, $options: 'i' };
           }
@@ -325,7 +333,7 @@ const manageSiteDropdownData = async (req, res) => {
         } else {
           const { search } = req.query;
           let filter = {};
-          
+
           if (search) {
             filter.name = { $regex: search, $options: 'i' };
           }
@@ -363,9 +371,9 @@ const manageSiteDropdownData = async (req, res) => {
 
           // Auto-create state if doesn't exist
           await SiteState.getOrCreate(state, userId);
-          
+
           const newCity = await SiteCity.getOrCreate(name, state, userId);
-          
+
           return res.status(201).json({
             success: true,
             message: 'Site city created successfully',
@@ -373,7 +381,7 @@ const manageSiteDropdownData = async (req, res) => {
           });
         } else {
           const newState = await SiteState.getOrCreate(name, userId);
-          
+
           return res.status(201).json({
             success: true,
             message: 'Site state created successfully',
@@ -446,7 +454,7 @@ const manageSiteDropdownData = async (req, res) => {
           if (stateDoc) {
             const stateInUse = await Site.findOne({ Site_State: stateDoc.name });
             const cityInState = await SiteCity.findOne({ state: stateDoc.name });
-            
+
             if (stateInUse || cityInState) {
               return res.status(400).json({
                 success: false,
@@ -501,7 +509,7 @@ const getSitesByParty = async (req, res) => {
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     const sites = await Site.getSitesByParty(partyId, {
       populate: include_details === 'true',
       limit: parseInt(limit),
@@ -645,7 +653,7 @@ const getSiteAnalytics = async (req, res) => {
 const uploadSitesFromExcel = async (req, res) => {
   try {
     console.log('Excel upload initiated for Sites...');
-    
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -655,7 +663,7 @@ const uploadSitesFromExcel = async (req, res) => {
 
     const allowedExtensions = ['.xlsx', '.xls'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExtension)) {
       return res.status(400).json({
         success: false,
@@ -664,12 +672,12 @@ const uploadSitesFromExcel = async (req, res) => {
     }
 
     console.log('Reading Excel file...');
-    
+
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
+
     if (!jsonData || jsonData.length === 0) {
       return res.status(400).json({
         success: false,
@@ -862,7 +870,7 @@ const uploadSitesFromExcel = async (req, res) => {
         // Auto-create city and state if they don't exist
         const cityName = Site_city.toString().trim();
         const stateName = Site_State.toString().trim();
-        
+
         let existingCity = await SiteCity.findOne({ name: cityName });
         if (!existingCity) {
           existingCity = await SiteCity.create({
@@ -920,7 +928,7 @@ const uploadSitesFromExcel = async (req, res) => {
 
         // Create Site
         const newSite = await Site.create(siteData);
-        
+
         results.successful.push({
           row: rowNumber,
           data: newSite
@@ -970,7 +978,7 @@ const uploadSitesFromExcel = async (req, res) => {
 
   } catch (error) {
     console.error('Excel upload error for Sites:', error);
-    
+
     if (req.file && req.file.path) {
       try {
         fs.unlinkSync(req.file.path);
@@ -978,7 +986,7 @@ const uploadSitesFromExcel = async (req, res) => {
         console.warn('Could not delete uploaded file after error:', cleanupError.message);
       }
     }
-    
+
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -996,12 +1004,12 @@ const generateSitesPDF = async (req, res) => {
     console.log('Method:', req.method);
     console.log('URL:', req.url);
     console.log('Query params:', req.query);
-    
+
     // Dynamic import of jsPDF
     const jsPDFModule = await import('jspdf');
     const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
     await import('jspdf-autotable');
-    
+
     // Get query parameters for filtering
     const { search, city, state, party_id } = req.query;
     let filter = {};
@@ -1137,11 +1145,104 @@ const generateSitesPDF = async (req, res) => {
   }
 };
 
+// @desc    Send OTP to Site's WhatsApp number
+// @route   POST /api/site/send-otp
+// @access  Public
+const sendSiteOTP = async (req, res) => {
+  try {
+    const { mobileNumber } = req.body;
+
+    if (!mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required'
+      });
+    }
+
+    if (!validatePhoneNumber(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid mobile number format. Please enter a 10-digit number'
+      });
+    }
+
+    const existingSite = await Site.findOne({ Mobile_Number: mobileNumber });
+    if (existingSite) {
+      return res.status(409).json({
+        success: false,
+        message: 'This mobile number is already registered with another Site'
+      });
+    }
+
+    const otp = generateOTP();
+    storeOTP(mobileNumber, otp);
+    await sendWhatsAppOTP(mobileNumber, otp, 'Site');
+
+    console.log(`OTP sent to ${mobileNumber}: ${otp}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully to your WhatsApp number',
+      data: { mobileNumber }
+    });
+
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send OTP. Please try again.'
+    });
+  }
+};
+
+// @desc    Verify OTP for Site registration
+// @route   POST /api/site/verify-otp
+// @access  Public
+const verifySiteOTP = async (req, res) => {
+  try {
+    const { mobileNumber, otp } = req.body;
+
+    if (!mobileNumber || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number and OTP are required'
+      });
+    }
+
+    const isValid = verifyStoredOTP(mobileNumber, otp);
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP. Please request a new OTP.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        mobileNumber,
+        verified: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP. Please try again.'
+    });
+  }
+};
+
 export {
   manageSites,
   manageSiteDropdownData,
   getSitesByParty,
   getSiteAnalytics,
   uploadSitesFromExcel,
-  generateSitesPDF
+  generateSitesPDF,
+  sendSiteOTP,
+  verifySiteOTP
 };

@@ -2,6 +2,14 @@ import { Architect, ArchType, City, State } from './architect.model.js';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import {
+  generateOTP,
+  sendWhatsAppOTP,
+  validatePhoneNumber,
+  storeOTP,
+  verifyOTP as verifyStoredOTP,
+  clearOTP
+} from '../../utils/whatsappHelper.js';
 
 // Helper function to auto-create dropdown values
 const autoCreateDropdownValues = async (Arch_type, Arch_city, Arch_state, state_code) => {
@@ -267,7 +275,7 @@ export const manageDropdownData = async (req, res, next) => {
             City.find({}).sort({ city_name: 1 }),
             State.find({}).sort({ state_name: 1 })
           ]);
-          
+
           return res.status(200).json({
             message: 'All dropdown data retrieved successfully',
             data: {
@@ -357,7 +365,7 @@ export const manageArchTypes = async (req, res, next) => {
       case 'POST':
         // CREATE ARCHITECT TYPE
         const { type_name, description } = req.body;
-        
+
         if (!type_name) {
           return res.status(400).json({ message: 'Architect type name is required' });
         }
@@ -406,7 +414,7 @@ export const manageCities = async (req, res, next) => {
       case 'POST':
         // CREATE CITY
         const { city_name, state_code } = req.body;
-        
+
         if (!city_name) {
           return res.status(400).json({ message: 'City name is required' });
         }
@@ -460,7 +468,7 @@ export const manageStates = async (req, res, next) => {
       case 'POST':
         // CREATE STATE
         const { state_name, state_code } = req.body;
-        
+
         if (!state_name) {
           return res.status(400).json({ message: 'State name is required' });
         }
@@ -514,7 +522,7 @@ export const manageArchitectCategories = async (req, res, next) => {
       case 'POST':
         // CREATE ARCHITECT CATEGORY
         const { category_name } = req.body;
-        
+
         if (!category_name) {
           return res.status(400).json({ message: 'Category name is required' });
         }
@@ -545,21 +553,113 @@ export const manageArchitectCategories = async (req, res, next) => {
   }
 };
 
+// @desc    Send OTP to Architect's WhatsApp number
+// @route   POST /api/architect/send-otp
+// @access  Public
+export const sendArchitectOTP = async (req, res, next) => {
+  try {
+    const { mobileNumber } = req.body;
+
+    if (!mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required'
+      });
+    }
+
+    if (!validatePhoneNumber(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid mobile number format. Please enter a 10-digit number'
+      });
+    }
+
+    // Check if mobile number already exists
+    const existingArchitect = await Architect.findOne({ 'Mobile Number': mobileNumber });
+    if (existingArchitect) {
+      return res.status(409).json({
+        success: false,
+        message: 'This mobile number is already registered with another Architect'
+      });
+    }
+
+    const otp = generateOTP();
+    storeOTP(mobileNumber, otp);
+    await sendWhatsAppOTP(mobileNumber, otp, 'Architect');
+
+    console.log(`OTP sent to ${mobileNumber}: ${otp}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully to your WhatsApp number',
+      data: { mobileNumber }
+    });
+
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send OTP. Please try again.'
+    });
+  }
+};
+
+// @desc    Verify OTP for Architect registration
+// @route   POST /api/architect/verify-otp
+// @access  Public
+export const verifyArchitectOTP = async (req, res, next) => {
+  try {
+    const { mobileNumber, otp } = req.body;
+
+    if (!mobileNumber || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number and OTP are required'
+      });
+    }
+
+    const isValid = verifyStoredOTP(mobileNumber, otp);
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP. Please request a new OTP.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        mobileNumber,
+        verified: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP. Please try again.'
+    });
+  }
+};
+
 export const getArchitectNames = async (req, res, next) => {
   try {
     console.log('Getting architect names list...');
-    
+
     // Get only Arch_Name field from all architects
     const architectNames = await Architect.find({}, { Arch_Name: 1, Arch_id: 1, _id: 0 }).sort({ Arch_Name: 1 });
-    
+
     // Extract just the names array
     const namesList = architectNames.map(architect => ({
       Arch_id: architect.Arch_id,
       Arch_Name: architect.Arch_Name
     }));
-    
+
     console.log(`Found ${namesList.length} architect names`);
-    
+
     return res.status(200).json({
       message: 'Architect names retrieved successfully',
       count: namesList.length,
@@ -576,7 +676,7 @@ export const getArchitectNames = async (req, res, next) => {
 export const uploadArchitectsFromExcel = async (req, res, next) => {
   try {
     console.log('Excel upload initiated for Architects...');
-    
+
     // Check if file is uploaded
     if (!req.file) {
       return res.status(400).json({
@@ -588,7 +688,7 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
     // Validate file type
     const allowedExtensions = ['.xlsx', '.xls'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExtension)) {
       return res.status(400).json({
         success: false,
@@ -597,15 +697,15 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
     }
 
     console.log('Reading Excel file...');
-    
+
     // Read Excel file
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    
+
     // Convert to JSON
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
+
     if (!jsonData || jsonData.length === 0) {
       return res.status(400).json({
         success: false,
@@ -796,7 +896,7 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
 
         // Create Architect
         const newArchitect = await Architect.create(architectData);
-        
+
         results.successful.push({
           row: rowNumber,
           data: newArchitect
@@ -846,7 +946,7 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
 
   } catch (error) {
     console.error('Excel upload error for Architects:', error);
-    
+
     // Clean up uploaded file in case of error
     if (req.file && req.file.path) {
       try {
@@ -855,7 +955,7 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
         console.warn('Could not delete uploaded file after error:', cleanupError.message);
       }
     }
-    
+
     next(error);
   }
 };
@@ -866,12 +966,12 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
 export const generateArchitectsPDF = async (req, res, next) => {
   try {
     console.log('PDF generation initiated for Architects...');
-    
+
     // Dynamic import of jsPDF
     const jsPDFModule = await import('jspdf');
     const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
     await import('jspdf-autotable');
-    
+
     // Get query parameters for filtering
     const { search, city, state, type, category } = req.query;
     let filter = {};
@@ -925,13 +1025,13 @@ export const generateArchitectsPDF = async (req, res, next) => {
       minute: '2-digit'
     });
     doc.text(`Generated on: ${currentDate}`, 14, 28);
-    
+
     let yPosition = 33;
     if (Object.keys(filter).length > 0) {
       doc.text(`Filters applied: ${JSON.stringify(filter)}`, 14, yPosition);
       yPosition += 5;
     }
-    
+
     doc.text(`Total Records: ${architects.length}`, 14, yPosition);
 
     // Prepare table data

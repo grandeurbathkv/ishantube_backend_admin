@@ -4,12 +4,14 @@ import {
   manageChannelPartners,
   getChannelPartnerDropdown,
   uploadChannelPartnersFromExcel,
-  generateChannelPartnersPDF
+  generateChannelPartnersPDF,
+  sendOTP,
+  verifyOTP
 } from './channelPartner.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { 
-  uploadChannelPartnerImage, 
-  handleUploadError, 
+import {
+  uploadChannelPartnerImage,
+  handleUploadError,
   processUploadedFile,
   uploadExcelFile
 } from '../../middleware/gcs.upload.middleware.js';
@@ -581,6 +583,67 @@ router.get('/export-pdf', protect, generateChannelPartnersPDF);
  *       401:
  *         description: Not authorized
  */
+
+// OTP Routes (Public - No authentication required)
+/**
+ * @swagger
+ * /api/channelpartner/send-otp:
+ *   post:
+ *     summary: Send OTP to Channel Partner's WhatsApp number
+ *     tags: [Channel Partner]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mobileNumber:
+ *                 type: string
+ *                 description: 10-digit mobile number
+ *                 example: "9876543210"
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid mobile number
+ *       409:
+ *         description: Mobile number already registered
+ *       500:
+ *         description: Failed to send OTP
+ */
+router.post('/send-otp', sendOTP);
+
+/**
+ * @swagger
+ * /api/channelpartner/verify-otp:
+ *   post:
+ *     summary: Verify OTP for Channel Partner registration
+ *     tags: [Channel Partner]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mobileNumber:
+ *                 type: string
+ *                 description: 10-digit mobile number
+ *                 example: "9876543210"
+ *               otp:
+ *                 type: string
+ *                 description: 6-digit OTP
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *       400:
+ *         description: Invalid or expired OTP
+ *       500:
+ *         description: Failed to verify OTP
+ */
+router.post('/verify-otp', verifyOTP);
 
 // Main CRUD routes
 router.route('/')

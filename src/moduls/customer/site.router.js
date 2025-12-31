@@ -5,12 +5,14 @@ import {
   getSitesByParty,
   getSiteAnalytics,
   uploadSitesFromExcel,
-  generateSitesPDF
+  generateSitesPDF,
+  sendSiteOTP,
+  verifySiteOTP
 } from './site.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { 
-  uploadExcelFile, 
-  handleUploadError 
+import {
+  uploadExcelFile,
+  handleUploadError
 } from '../../middleware/gcs.upload.middleware.js';
 
 const router = express.Router();
@@ -710,5 +712,9 @@ router.route('/dropdown/:type/:id').put(protect, manageSiteDropdownData).delete(
  *         description: Not authorized
  */
 router.get('/analytics', protect, getSiteAnalytics);
+
+// OTP Routes (Public - No authentication required)
+router.post('/send-otp', sendSiteOTP);
+router.post('/verify-otp', verifySiteOTP);
 
 export default router;

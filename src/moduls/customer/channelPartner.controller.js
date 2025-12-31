@@ -2,6 +2,14 @@ import { ChannelPartner } from './channelPartner.model.js';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import {
+  generateOTP,
+  sendWhatsAppOTP,
+  validatePhoneNumber,
+  storeOTP,
+  verifyOTP as verifyStoredOTP,
+  clearOTP
+} from '../../utils/whatsappHelper.js';
 
 // @desc    Get all Channel Partner IDs and Names for dropdown
 // @route   GET /api/channelpartner/dropdown
@@ -33,9 +41,9 @@ export const manageChannelPartners = async (req, res, next) => {
     switch (method) {
       case 'POST':
         // CREATE CHANNEL PARTNER
-        const { 
-          CP_Name, 'Mobile Number': mobileNumber, 'Email id': email, 
-          Image, CP_Address, status 
+        const {
+          CP_Name, 'Mobile Number': mobileNumber, 'Email id': email,
+          Image, CP_Address, status
         } = req.body;
 
         const newChannelPartner = await ChannelPartner.create({
@@ -89,7 +97,7 @@ export const manageChannelPartners = async (req, res, next) => {
 
           // Get incentives for all channel partners
           const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
-          
+
           // Create a response with incentive data
           const partnersWithIncentives = await Promise.all(
             channelPartners.map(async (partner) => {
@@ -149,10 +157,115 @@ export const manageChannelPartners = async (req, res, next) => {
       default:
         return res.status(405).json({ message: 'Method not allowed' });
     }
-    } catch (error) {
-      next(error);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Send OTP to Channel Partner's WhatsApp number
+// @route   POST /api/channelpartner/send-otp
+// @access  Public
+export const sendOTP = async (req, res, next) => {
+  try {
+    const { mobileNumber } = req.body;
+
+    // Validate mobile number
+    if (!mobileNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required'
+      });
     }
-  };
+
+    // Validate phone number format
+    if (!validatePhoneNumber(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid mobile number format. Please enter a 10-digit number'
+      });
+    }
+
+    // Check if mobile number already exists
+    const existingPartner = await ChannelPartner.findOne({ 'Mobile Number': mobileNumber });
+    if (existingPartner) {
+      return res.status(409).json({
+        success: false,
+        message: 'This mobile number is already registered with another Channel Partner'
+      });
+    }
+
+    // Generate OTP
+    const otp = generateOTP();
+
+    // Store OTP
+    storeOTP(mobileNumber, otp);
+
+    // Send OTP via WhatsApp
+    await sendWhatsAppOTP(mobileNumber, otp, 'Channel Partner');
+
+    console.log(`OTP sent to ${mobileNumber}: ${otp}`); // For development/testing
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully to your WhatsApp number',
+      data: {
+        mobileNumber,
+        // In production, don't send OTP in response
+        // otp: otp 
+      }
+    });
+
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send OTP. Please try again.'
+    });
+  }
+};
+
+// @desc    Verify OTP for Channel Partner registration
+// @route   POST /api/channelpartner/verify-otp
+// @access  Public
+export const verifyOTP = async (req, res, next) => {
+  try {
+    const { mobileNumber, otp } = req.body;
+
+    // Validate input
+    if (!mobileNumber || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number and OTP are required'
+      });
+    }
+
+    // Verify OTP
+    const isValid = verifyStoredOTP(mobileNumber, otp);
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP. Please request a new OTP.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully',
+      data: {
+        mobileNumber,
+        verified: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify OTP. Please try again.'
+    });
+  }
+};
 
 // @desc    Upload Channel Partners from Excel file
 // @route   POST /api/channelpartner/upload-excel
@@ -160,7 +273,7 @@ export const manageChannelPartners = async (req, res, next) => {
 export const uploadChannelPartnersFromExcel = async (req, res, next) => {
   try {
     console.log('Excel upload initiated...');
-    
+
     // Check if file is uploaded
     if (!req.file) {
       return res.status(400).json({
@@ -172,7 +285,7 @@ export const uploadChannelPartnersFromExcel = async (req, res, next) => {
     // Validate file type
     const allowedExtensions = ['.xlsx', '.xls'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExtension)) {
       return res.status(400).json({
         success: false,
@@ -181,15 +294,15 @@ export const uploadChannelPartnersFromExcel = async (req, res, next) => {
     }
 
     console.log('Reading Excel file...');
-    
+
     // Read Excel file
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0]; // Get first sheet
     const worksheet = workbook.Sheets[sheetName];
-    
+
     // Convert to JSON
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
+
     if (!jsonData || jsonData.length === 0) {
       return res.status(400).json({
         success: false,
@@ -314,7 +427,7 @@ export const uploadChannelPartnersFromExcel = async (req, res, next) => {
 
         // Create Channel Partner
         const newPartner = await ChannelPartner.create(partnerData);
-        
+
         results.successful.push({
           row: rowNumber,
           data: newPartner
@@ -364,7 +477,7 @@ export const uploadChannelPartnersFromExcel = async (req, res, next) => {
 
   } catch (error) {
     console.error('Excel upload error:', error);
-    
+
     // Clean up uploaded file in case of error
     if (req.file && req.file.path) {
       try {
@@ -373,7 +486,7 @@ export const uploadChannelPartnersFromExcel = async (req, res, next) => {
         console.warn('Could not delete uploaded file after error:', cleanupError.message);
       }
     }
-    
+
     next(error);
   }
 };
@@ -384,12 +497,12 @@ export const uploadChannelPartnersFromExcel = async (req, res, next) => {
 export const generateChannelPartnersPDF = async (req, res, next) => {
   try {
     console.log('PDF generation initiated...');
-    
+
     // Dynamic import of jsPDF to handle ES module compatibility
     const jsPDFModule = await import('jspdf');
     const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
     await import('jspdf-autotable');
-    
+
     // Get query parameters for filtering
     const { search, includeIncentives = 'false' } = req.query;
     let filter = {};
@@ -440,11 +553,11 @@ export const generateChannelPartnersPDF = async (req, res, next) => {
       minute: '2-digit'
     });
     doc.text(`Generated on: ${currentDate}`, 14, 28);
-    
+
     if (search) {
       doc.text(`Filter applied: "${search}"`, 14, 33);
     }
-    
+
     doc.text(`Total Records: ${channelPartners.length}`, 14, search ? 38 : 33);
 
     // Prepare table data
@@ -505,10 +618,10 @@ export const generateChannelPartnersPDF = async (req, res, next) => {
     if (includeIncentives === 'true') {
       try {
         const { ChannelPartnerIncentive } = await import('./channelPartnerIncentive.model.js');
-        
+
         // Add new page for incentives
         doc.addPage();
-        
+
         // Add incentives title
         doc.setFontSize(16);
         doc.setTextColor(40, 116, 166);
@@ -537,8 +650,8 @@ export const generateChannelPartnersPDF = async (req, res, next) => {
               partner ? partner.CP_Name : '-',
               incentive.Brand || '-',
               incentive.Incentive_type || '-',
-              incentive.Incentive_factor ? 
-                (incentive.Incentive_type === 'Percentage' ? `${incentive.Incentive_factor}%` : `₹${incentive.Incentive_factor}`) 
+              incentive.Incentive_factor ?
+                (incentive.Incentive_type === 'Percentage' ? `${incentive.Incentive_factor}%` : `₹${incentive.Incentive_factor}`)
                 : '-',
               incentive.status ? 'Active' : 'Inactive'
             ];
