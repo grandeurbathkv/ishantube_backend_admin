@@ -70,7 +70,8 @@ const manageParties = async (req, res) => {
           Party_default_User_id,
           Party_default_cp_id,
           Party_default_Arch_id,
-          created_by: userId
+          created_by: userId,
+          mobileVerified: req.body.mobileVerified === 'true' || req.body.mobileVerified === true,
         });
 
         // Auto-create default site for the party

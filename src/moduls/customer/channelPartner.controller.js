@@ -43,12 +43,13 @@ export const manageChannelPartners = async (req, res, next) => {
         // CREATE CHANNEL PARTNER
         const {
           CP_Name, 'Mobile Number': mobileNumber, 'Email id': email,
-          Image, CP_Address, status
+          Image, CP_Address, status, mobileVerified
         } = req.body;
 
         const newChannelPartner = await ChannelPartner.create({
           CP_Name, 'Mobile Number': mobileNumber, 'Email id': email,
           Image, CP_Address, status: status !== undefined ? status : true,
+          mobileVerified: mobileVerified === 'true' || mobileVerified === true,
         });
 
         return res.status(201).json({

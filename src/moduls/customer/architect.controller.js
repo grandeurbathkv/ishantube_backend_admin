@@ -105,6 +105,7 @@ export const manageArchitects = async (req, res, next) => {
           Arch_Address,
           Arch_city,
           Arch_state,
+          mobileVerified: req.body.mobileVerified === 'true' || req.body.mobileVerified === true,
         });
 
         return res.status(201).json({

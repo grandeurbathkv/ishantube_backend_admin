@@ -61,7 +61,7 @@ export const sendWhatsAppOTP = async (phoneNumber, otp, registrationType = 'regi
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'IshantubBackend/1.0'
             },
-            timeout: 10000 // 10 second timeout
+            timeout: 30000 // 30 second timeout (increased for slow API)
         });
 
         console.log('📱 Step 11: API Response Status:', response.status);
@@ -79,6 +79,7 @@ export const sendWhatsAppOTP = async (phoneNumber, otp, registrationType = 'regi
     } catch (error) {
         console.error('❌ Error sending WhatsApp OTP - Full error:', error);
         console.error('❌ Error message:', error.message);
+        console.error('❌ Error code:', error.code);
         console.error('❌ Error response status:', error.response?.status);
         console.error('❌ Error response data:', error.response?.data);
         console.error('❌ Error response headers:', error.response?.headers);
@@ -87,6 +88,11 @@ export const sendWhatsAppOTP = async (phoneNumber, otp, registrationType = 'regi
             method: error.config?.method,
             params: error.config?.params
         });
+
+        // Handle timeout errors
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            throw new Error('WhatsApp API request timed out. Please check: 1) Your internet connection, 2) WhatsApp number is connected at https://api.textmebot.com/status.php?apikey=' + TEXTMEBOT_API_KEY);
+        }
 
         // Check for specific error messages from TextMeBot API
         if (error.response?.data && typeof error.response.data === 'string') {

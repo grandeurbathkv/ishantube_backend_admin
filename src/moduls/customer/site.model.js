@@ -51,7 +51,7 @@ const siteSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Allow empty/undefined for auto-generation
         return v === undefined || v === null || v.length === 0 || (typeof v === 'string' && v.length > 0);
       },
@@ -63,7 +63,7 @@ const siteSchema = new mongoose.Schema({
     required: [true, 'Site Billing Name is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Site Billing Name cannot be empty'
@@ -74,7 +74,7 @@ const siteSchema = new mongoose.Schema({
     required: [true, 'Contact Person is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Contact Person cannot be empty'
@@ -82,9 +82,10 @@ const siteSchema = new mongoose.Schema({
   },
   Mobile_Number: {
     type: String,
-    required: [true, 'Mobile Number is required'],
+    required: false,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
+        if (!v || v === '') return true; // Allow empty
         // 10 digit mobile number validation
         return /^[0-9]{10}$/.test(v);
       },
@@ -101,7 +102,7 @@ const siteSchema = new mongoose.Schema({
     trim: true,
     default: '',
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // 10 digit validation only if not empty
         if (!v || v.trim() === '') return true;
         return /^[0-9]{10}$/.test(v);
@@ -119,7 +120,7 @@ const siteSchema = new mongoose.Schema({
     trim: true,
     default: '',
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Email validation only if not empty
         if (!v || v.trim() === '') return true;
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -127,12 +128,20 @@ const siteSchema = new mongoose.Schema({
       message: 'Please enter a valid email address'
     }
   },
+  mobileVerified: {
+    type: Boolean,
+    default: false,
+  },
+  supervisorMobileVerified: {
+    type: Boolean,
+    default: false,
+  },
   Site_Address: {
     type: String,
     required: [true, 'Site Address is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Site Address cannot be blank'
@@ -143,7 +152,7 @@ const siteSchema = new mongoose.Schema({
     required: [true, 'Site City is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Site City cannot be blank'
@@ -154,7 +163,7 @@ const siteSchema = new mongoose.Schema({
     required: [true, 'Site State is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Site State cannot be blank'
@@ -165,7 +174,7 @@ const siteSchema = new mongoose.Schema({
     trim: true,
     default: '',
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // GST validation only if not empty - 15 characters
         if (!v || v.trim() === '') return true;
         return v.length === 15;
@@ -177,7 +186,7 @@ const siteSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Site Party ID is required'],
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Site Party ID cannot be empty'
@@ -192,7 +201,7 @@ const siteSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Site Channel Partner ID is required'],
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Allow either valid CP_id or "NA"
         return v === 'NA' || (v && v.length > 0);
       },
@@ -252,7 +261,7 @@ siteSchema.set('toJSON', { virtuals: true });
 siteSchema.set('toObject', { virtuals: true });
 
 // Pre-save middleware to auto-generate Site_id and validate references
-siteSchema.pre('save', async function(next) {
+siteSchema.pre('save', async function (next) {
   try {
     // Auto-generate Site_id if not provided
     if (!this.Site_id) {
@@ -298,11 +307,11 @@ siteSchema.pre('save', async function(next) {
 });
 
 // Static methods for dropdown management (reusing city/state logic)
-siteCitySchema.statics.getOrCreate = async function(cityName, stateName, userId) {
+siteCitySchema.statics.getOrCreate = async function (cityName, stateName, userId) {
   try {
     // Check if city already exists
     let city = await this.findOne({ name: cityName.trim() });
-    
+
     if (!city) {
       // Create new city
       city = await this.create({
@@ -311,18 +320,18 @@ siteCitySchema.statics.getOrCreate = async function(cityName, stateName, userId)
         created_by: userId
       });
     }
-    
+
     return city;
   } catch (error) {
     throw error;
   }
 };
 
-siteStateSchema.statics.getOrCreate = async function(stateName, userId) {
+siteStateSchema.statics.getOrCreate = async function (stateName, userId) {
   try {
     // Check if state already exists
     let state = await this.findOne({ name: stateName.trim() });
-    
+
     if (!state) {
       // Create new state
       state = await this.create({
@@ -330,7 +339,7 @@ siteStateSchema.statics.getOrCreate = async function(stateName, userId) {
         created_by: userId
       });
     }
-    
+
     return state;
   } catch (error) {
     throw error;
@@ -338,10 +347,10 @@ siteStateSchema.statics.getOrCreate = async function(stateName, userId) {
 };
 
 // Static method to get sites by party
-siteSchema.statics.getSitesByParty = async function(partyId, options = {}) {
+siteSchema.statics.getSitesByParty = async function (partyId, options = {}) {
   try {
     const { populate = false, limit = 10, skip = 0 } = options;
-    
+
     let query = this.find({ Site_party_id: partyId })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -361,7 +370,7 @@ siteSchema.statics.getSitesByParty = async function(partyId, options = {}) {
 };
 
 // Static method to get site analytics by party
-siteSchema.statics.getSiteAnalyticsByParty = async function(partyId) {
+siteSchema.statics.getSiteAnalyticsByParty = async function (partyId) {
   try {
     const analytics = await this.aggregate([
       { $match: { Site_party_id: partyId } },

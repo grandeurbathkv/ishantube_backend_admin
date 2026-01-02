@@ -57,9 +57,10 @@ const architectSchema = new mongoose.Schema({
   },
   'Mobile Number': {
     type: String,
-    // required: [true, 'Mobile number is required'],
+    required: false,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
+        if (!v || v === '') return true; // Allow empty
         return /^\d{10}$/.test(v);
       },
       message: props => `${props.value} is not a valid 10-digit mobile number!`
@@ -93,6 +94,10 @@ const architectSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Architect Address is required'],
     trim: true,
+  },
+  mobileVerified: {
+    type: Boolean,
+    default: false,
   },
   Arch_city: {
     type: String,

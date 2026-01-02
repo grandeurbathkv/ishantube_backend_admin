@@ -51,7 +51,7 @@ const partySchema = new mongoose.Schema({
     unique: true,
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Allow empty/undefined for auto-generation
         return v === undefined || v === null || v.length === 0 || (typeof v === 'string' && v.length > 0);
       },
@@ -63,7 +63,7 @@ const partySchema = new mongoose.Schema({
     required: [true, 'Party Billing Name is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Party Billing Name cannot be empty'
@@ -74,7 +74,7 @@ const partySchema = new mongoose.Schema({
     required: [true, 'Contact Person is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Contact Person cannot be empty'
@@ -82,9 +82,10 @@ const partySchema = new mongoose.Schema({
   },
   Mobile_Number: {
     type: String,
-    required: [true, 'Mobile Number is required'],
+    required: false,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
+        if (!v || v === '') return true; // Allow empty
         // 10 digit mobile number validation
         return /^[0-9]{10}$/.test(v);
       },
@@ -101,7 +102,7 @@ const partySchema = new mongoose.Schema({
     trim: true,
     default: '',
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Email validation only if not empty
         if (!v || v.trim() === '') return true;
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -114,18 +115,22 @@ const partySchema = new mongoose.Schema({
     required: [true, 'Party Address is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Party Address cannot be blank'
     }
+  },
+  mobileVerified: {
+    type: Boolean,
+    default: false,
   },
   Party_city: {
     type: String,
     required: [true, 'Party City is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Party City cannot be blank'
@@ -136,7 +141,7 @@ const partySchema = new mongoose.Schema({
     required: [true, 'Party State is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Party State cannot be blank'
@@ -147,7 +152,7 @@ const partySchema = new mongoose.Schema({
     trim: true,
     default: '',
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // GST validation only if not empty - 15 characters
         if (!v || v.trim() === '') return true;
         return v.length === 15;
@@ -164,7 +169,7 @@ const partySchema = new mongoose.Schema({
     type: String,
     // required: [true, 'Party Default Channel Partner ID is required'],
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Allow either valid CP_id or "NA"
         return v === 'NA' || (v && v.length > 0);
       },
@@ -175,7 +180,7 @@ const partySchema = new mongoose.Schema({
     type: String,
     // required: [true, 'Party Default Architect ID is required'],
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         // Allow either valid Arch_id or "NA"
         return v === 'NA' || (v && v.length > 0);
       },
@@ -235,7 +240,7 @@ partySchema.set('toJSON', { virtuals: true });
 partySchema.set('toObject', { virtuals: true });
 
 // Pre-save middleware to auto-generate Party_id and validate references
-partySchema.pre('save', async function(next) {
+partySchema.pre('save', async function (next) {
   try {
     // Auto-generate Party_id if not provided
     if (!this.Party_id) {
@@ -283,11 +288,11 @@ partySchema.pre('save', async function(next) {
 });
 
 // Static methods for dropdown management
-partyCitySchema.statics.getOrCreate = async function(cityName, stateName, userId) {
+partyCitySchema.statics.getOrCreate = async function (cityName, stateName, userId) {
   try {
     // Check if city already exists
     let city = await this.findOne({ name: cityName.trim() });
-    
+
     if (!city) {
       // Create new city
       city = await this.create({
@@ -296,18 +301,18 @@ partyCitySchema.statics.getOrCreate = async function(cityName, stateName, userId
         created_by: userId
       });
     }
-    
+
     return city;
   } catch (error) {
     throw error;
   }
 };
 
-partyStateSchema.statics.getOrCreate = async function(stateName, userId) {
+partyStateSchema.statics.getOrCreate = async function (stateName, userId) {
   try {
     // Check if state already exists
     let state = await this.findOne({ name: stateName.trim() });
-    
+
     if (!state) {
       // Create new state
       state = await this.create({
@@ -315,7 +320,7 @@ partyStateSchema.statics.getOrCreate = async function(stateName, userId) {
         created_by: userId
       });
     }
-    
+
     return state;
   } catch (error) {
     throw error;

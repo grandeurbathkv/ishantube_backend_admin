@@ -73,7 +73,9 @@ const manageSites = async (req, res) => {
           Site_party_id,
           Site_User_id,
           Site_cp_id,
-          created_by: userId
+          created_by: userId,
+          mobileVerified: req.body.mobileVerified === 'true' || req.body.mobileVerified === true,
+          supervisorMobileVerified: req.body.supervisorMobileVerified === 'true' || req.body.supervisorMobileVerified === true,
         });
 
         // Populate reference details for response
