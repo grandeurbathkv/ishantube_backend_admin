@@ -125,9 +125,66 @@ export const manageArchitects = async (req, res, next) => {
           if (!architect) {
             return res.status(404).json({ message: 'Architect not found' });
           }
+
+          // Resolve city and state names if they are IDs
+          let cityName = architect.Arch_city;
+          let stateName = architect.Arch_state;
+
+          // Handle if city is already an object
+          if (cityName && typeof cityName === 'object' && cityName.city_name) {
+            cityName = cityName.city_name;
+          } else if (cityName && typeof cityName === 'string') {
+            if (cityName.match(/^[0-9a-fA-F]{24}$/)) {
+              try {
+                const cityDoc = await City.findById(cityName);
+                cityName = cityDoc ? cityDoc.city_name : cityName;
+              } catch (err) {
+                console.log('Error resolving city:', err.message);
+              }
+            } else if (/^\d+$/.test(cityName)) {
+              try {
+                const allCities = await City.find({}).sort({ _id: 1 });
+                const cityDoc = allCities.find(c => String(c._id) === cityName || c._id === parseInt(cityName));
+                cityName = cityDoc ? cityDoc.city_name : cityName;
+              } catch (err) {
+                console.log('Error resolving city:', err.message);
+              }
+            }
+          }
+
+          // Handle if state is already an object
+          if (stateName && typeof stateName === 'object' && stateName.state_name) {
+            stateName = stateName.state_name;
+          } else if (stateName && typeof stateName === 'string') {
+            if (stateName.match(/^[0-9a-fA-F]{24}$/)) {
+              try {
+                const stateDoc = await State.findById(stateName);
+                stateName = stateDoc ? stateDoc.state_name : stateName;
+              } catch (err) {
+                console.log('Error resolving state:', err.message);
+              }
+            } else if (/^\d+$/.test(stateName)) {
+              try {
+                const allStates = await State.find({}).sort({ _id: 1 });
+                const stateDoc = allStates.find(s => String(s._id) === stateName || s._id === parseInt(stateName));
+                stateName = stateDoc ? stateDoc.state_name : stateName;
+              } catch (err) {
+                console.log('Error resolving state:', err.message);
+              }
+            }
+          }
+
+          // Ensure strings are returned
+          cityName = String(cityName || '');
+          stateName = String(stateName || '');
+
           return res.status(200).json({
             message: 'Architect retrieved successfully',
-            data: architect,
+            data: {
+              ...architect.toObject(),
+              Arch_city: cityName,
+              Arch_state: stateName
+            },
           });
         } else {
           // GET ALL ARCHITECTS WITH FILTERS
@@ -149,21 +206,87 @@ export const manageArchitects = async (req, res, next) => {
           }
 
           const architects = await Architect.find(filter).sort({ Arch_Name: 1 });
-          // Ensure Mobile Number and Email id are included in the response
-          const architectList = architects.map(a => ({
-            Arch_id: a.Arch_id,
-            Arch_Name: a.Arch_Name,
-            'Mobile Number': a['Mobile Number'],
-            'Email id': a['Email id'],
-            Arch_type: a.Arch_type,
-            Arch_category: a.Arch_category,
-            Image: a.Image,
-            Arch_Address: a.Arch_Address,
-            Arch_city: a.Arch_city,
-            Arch_state: a.Arch_state,
-            createdAt: a.createdAt,
-            updatedAt: a.updatedAt
+
+          // Helper function to resolve city/state names from IDs
+          const resolveCityStateName = async (architect) => {
+            let cityName = architect.Arch_city;
+            let stateName = architect.Arch_state;
+
+            // Handle if city is already an object with city_name property
+            if (cityName && typeof cityName === 'object' && cityName.city_name) {
+              cityName = cityName.city_name;
+            } else if (cityName && typeof cityName === 'string') {
+              // Check if it's a MongoDB ObjectId
+              if (cityName.match(/^[0-9a-fA-F]{24}$/)) {
+                try {
+                  const cityDoc = await City.findById(cityName);
+                  cityName = cityDoc ? cityDoc.city_name : cityName;
+                } catch (err) {
+                  console.log('Error resolving city ObjectId:', err.message);
+                }
+              } else if (/^\d+$/.test(cityName)) {
+                // It's a numeric ID - find all cities and match
+                try {
+                  const allCities = await City.find({}).sort({ _id: 1 });
+                  const cityDoc = allCities.find(c => String(c._id) === cityName || c._id === parseInt(cityName));
+                  cityName = cityDoc ? cityDoc.city_name : cityName;
+                } catch (err) {
+                  console.log('Error resolving city numeric ID:', err.message);
+                }
+              }
+            }
+
+            // Handle if state is already an object with state_name property
+            if (stateName && typeof stateName === 'object' && stateName.state_name) {
+              stateName = stateName.state_name;
+            } else if (stateName && typeof stateName === 'string') {
+              // Check if it's a MongoDB ObjectId
+              if (stateName.match(/^[0-9a-fA-F]{24}$/)) {
+                try {
+                  const stateDoc = await State.findById(stateName);
+                  stateName = stateDoc ? stateDoc.state_name : stateName;
+                } catch (err) {
+                  console.log('Error resolving state ObjectId:', err.message);
+                }
+              } else if (/^\d+$/.test(stateName)) {
+                // It's a numeric ID - find all states and match
+                try {
+                  const allStates = await State.find({}).sort({ _id: 1 });
+                  const stateDoc = allStates.find(s => String(s._id) === stateName || s._id === parseInt(stateName));
+                  stateName = stateDoc ? stateDoc.state_name : stateName;
+                } catch (err) {
+                  console.log('Error resolving state numeric ID:', err.message);
+                }
+              }
+            }
+
+            // Ensure we always return strings, never objects
+            return {
+              cityName: String(cityName || ''),
+              stateName: String(stateName || '')
+            };
+          };
+
+          // Resolve city and state names for all architects
+          const architectList = await Promise.all(architects.map(async (a) => {
+            const { cityName, stateName } = await resolveCityStateName(a);
+            console.log('Resolved names:', { cityName, stateName, type: typeof cityName });
+            return {
+              Arch_id: a.Arch_id,
+              Arch_Name: a.Arch_Name,
+              'Mobile Number': a['Mobile Number'],
+              'Email id': a['Email id'],
+              Arch_type: a.Arch_type,
+              Arch_category: a.Arch_category,
+              Image: a.Image,
+              Arch_Address: a.Arch_Address,
+              Arch_city: cityName,
+              Arch_state: stateName,
+              createdAt: a.createdAt,
+              updatedAt: a.updatedAt
+            };
           }));
+
           return res.status(200).json({
             message: `Architects retrieved successfully${Object.keys(filter).length ? ' with filters' : ''}`,
             count: architectList.length,
@@ -178,13 +301,43 @@ export const manageArchitects = async (req, res, next) => {
           return res.status(400).json({ message: 'Architect ID is required for update' });
         }
 
+        console.log('=== UPDATE ARCHITECT DEBUG ===');
+        console.log('Architect ID:', id);
+        console.log('req.body:', req.body);
+        console.log('req.file:', req.file);
+        console.log('req.body.Image:', req.body.Image);
+
+        // Build update data object
+        const updateData = {};
+
+        // Handle regular fields
+        if (req.body.Arch_Name) updateData.Arch_Name = req.body.Arch_Name;
+        if (req.body.Mobile !== undefined) updateData['Mobile Number'] = req.body.Mobile;
+        if (req.body.Email !== undefined) updateData['Email id'] = req.body.Email;
+        if (req.body.Arch_type) updateData.Arch_type = req.body.Arch_type;
+        if (req.body.Arch_category) updateData.Arch_category = req.body.Arch_category;
+        if (req.body.Arch_Address) updateData.Arch_Address = req.body.Arch_Address;
+        if (req.body.Arch_city) updateData.Arch_city = req.body.Arch_city;
+        if (req.body.Arch_state) updateData.Arch_state = req.body.Arch_state;
+
+        // Handle file upload - GCS middleware sets req.body.Image
+        if (req.body.Image && req.body.Image.trim() !== '') {
+          console.log('✅ Image URL from GCS middleware:', req.body.Image);
+          updateData.Image = req.body.Image;
+        } else if (req.file) {
+          console.log('⚠️ File exists but no GCS URL - check middleware');
+        }
+
+        console.log('updateData:', updateData);
+        console.log('==============================');
+
         // Extract state_code from body for update as well
         const { Arch_type, Arch_city, Arch_state, state_code } = req.body;
         await autoCreateDropdownValues(Arch_type, Arch_city, Arch_state, state_code);
 
         const updatedArchitect = await Architect.findOneAndUpdate(
           { Arch_id: id },
-          req.body,
+          updateData,
           { new: true, runValidators: true }
         );
 
@@ -194,7 +347,23 @@ export const manageArchitects = async (req, res, next) => {
 
         return res.status(200).json({
           message: 'Architect updated successfully',
-          data: updatedArchitect,
+          data: {
+            _id: updatedArchitect._id,
+            Arch_id: updatedArchitect.Arch_id,
+            Arch_Name: updatedArchitect.Arch_Name,
+            'Mobile Number': updatedArchitect['Mobile Number'],
+            'Email id': updatedArchitect['Email id'],
+            Arch_type: updatedArchitect.Arch_type,
+            Arch_category: updatedArchitect.Arch_category,
+            Image: updatedArchitect.Image || '',
+            Arch_Address: updatedArchitect.Arch_Address,
+            mobileVerified: updatedArchitect.mobileVerified,
+            Arch_city: updatedArchitect.Arch_city,
+            Arch_state: updatedArchitect.Arch_state,
+            createdAt: updatedArchitect.createdAt,
+            updatedAt: updatedArchitect.updatedAt,
+            __v: updatedArchitect.__v
+          },
         });
 
       case 'DELETE':
