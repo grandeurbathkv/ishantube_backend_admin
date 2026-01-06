@@ -107,7 +107,7 @@ const productSchema = new mongoose.Schema({
     required: [true, 'Product code is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Product code cannot be empty'
@@ -118,7 +118,7 @@ const productSchema = new mongoose.Schema({
     required: [true, 'Product description is required'],
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v && v.length > 0;
       },
       message: 'Product description cannot be empty'
@@ -145,7 +145,7 @@ const productSchema = new mongoose.Schema({
     required: [true, 'Product MRP is required'],
     min: [0, 'Product MRP cannot be negative'],
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v > 0;
       },
       message: 'Product MRP must be greater than 0'
@@ -154,7 +154,7 @@ const productSchema = new mongoose.Schema({
   Product_Flag: {
     type: String,
     required: [true, 'Product flag is required'],
-    enum: ['S2s', 'o2s'],
+    enum: ['S2s', 'o2s', 'O2s'],
     trim: true
   },
   Product_Category: {
@@ -273,7 +273,7 @@ const productSchema = new mongoose.Schema({
     type: String,
     trim: true,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return v === 'NA' || (v && v.length > 0);
       },
       message: 'Product must order reference is required (use "NA" if not applicable)'
@@ -308,7 +308,7 @@ productSubCategorySchema.index({ category: 1 });
 productSeriesSchema.index({ name: 1 });
 
 // Pre-save middleware to auto-generate Prod_ID
-productSchema.pre('save', async function(next) {
+productSchema.pre('save', async function (next) {
   try {
     // Auto-generate Prod_ID if not provided
     if (!this.Prod_ID) {
@@ -338,7 +338,7 @@ productSchema.pre('save', async function(next) {
 });
 
 // Static methods for dropdown management
-productBrandSchema.statics.getOrCreate = async function(brandName, userId) {
+productBrandSchema.statics.getOrCreate = async function (brandName, userId) {
   try {
     let brand = await this.findOne({ name: brandName.trim() });
     if (!brand) {
@@ -353,7 +353,7 @@ productBrandSchema.statics.getOrCreate = async function(brandName, userId) {
   }
 };
 
-productColorSchema.statics.getOrCreate = async function(colorName, userId) {
+productColorSchema.statics.getOrCreate = async function (colorName, userId) {
   try {
     let color = await this.findOne({ name: colorName.trim() });
     if (!color) {
@@ -368,7 +368,7 @@ productColorSchema.statics.getOrCreate = async function(colorName, userId) {
   }
 };
 
-productCategorySchema.statics.getOrCreate = async function(categoryName, userId) {
+productCategorySchema.statics.getOrCreate = async function (categoryName, userId) {
   try {
     let category = await this.findOne({ name: categoryName.trim() });
     if (!category) {
@@ -383,9 +383,9 @@ productCategorySchema.statics.getOrCreate = async function(categoryName, userId)
   }
 };
 
-productSubCategorySchema.statics.getOrCreate = async function(subCategoryName, categoryName, userId) {
+productSubCategorySchema.statics.getOrCreate = async function (subCategoryName, categoryName, userId) {
   try {
-    let subCategory = await this.findOne({ 
+    let subCategory = await this.findOne({
       name: subCategoryName.trim(),
       category: categoryName.trim()
     });
@@ -402,7 +402,7 @@ productSubCategorySchema.statics.getOrCreate = async function(subCategoryName, c
   }
 };
 
-productSeriesSchema.statics.getOrCreate = async function(seriesName, userId) {
+productSeriesSchema.statics.getOrCreate = async function (seriesName, userId) {
   try {
     let series = await this.findOne({ name: seriesName.trim() });
     if (!series) {
@@ -425,11 +425,11 @@ const ProductCategory = mongoose.model('ProductCategory', productCategorySchema)
 const ProductSubCategory = mongoose.model('ProductSubCategory', productSubCategorySchema);
 const ProductSeries = mongoose.model('ProductSeries', productSeriesSchema);
 
-export { 
-  Product, 
-  ProductBrand, 
-  ProductColor, 
-  ProductCategory, 
-  ProductSubCategory, 
-  ProductSeries 
+export {
+  Product,
+  ProductBrand,
+  ProductColor,
+  ProductCategory,
+  ProductSubCategory,
+  ProductSeries
 };
