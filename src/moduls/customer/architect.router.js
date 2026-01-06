@@ -447,11 +447,12 @@ router.post('/upload-excel', protect, uploadExcelFile, handleUploadError, upload
  */
 router.get('/export-pdf', protect, generateArchitectsPDF);
 
+// ========== Dropdown Management Route (MUST be before /:id route) ==========
+router.route('/dropdown').get(protect, manageDropdownData).post(protect, manageDropdownData);
+
 // Main CRUD routes (with image upload for create/update)
 router.route('/').post(protect, uploadArchitectImage, processUploadedFile, manageArchitects).get(protect, manageArchitects);
 router.route('/:id').get(protect, manageArchitects).put(protect, uploadArchitectImage, processUploadedFile, manageArchitects).delete(protect, manageArchitects);
-
-// ========== Dropdown Management Route ==========
 
 /**
  * @swagger
