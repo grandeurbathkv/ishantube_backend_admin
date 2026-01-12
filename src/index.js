@@ -10,12 +10,12 @@ import routes from './routers/index.js';
 import errorHandler from './middleware/errorhanddling.js';
 import { initializeSocketIO } from './socket.js';
 
-// Only load .env in development (not in production/Cloud Run)
+// Only load .env in development
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
   console.log('📝 Loaded environment from .env file (development mode)');
 } else {
-  console.log('🚀 Running in production mode - using Cloud environment variables');
+  console.log('🚀 Running in production mode - using environment variables');
 }
 
 // ===== DEBUG: Print all important environment variables =====
@@ -24,9 +24,10 @@ console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('PORT:', process.env.PORT);
 console.log('MONGO_URI:', process.env.MONGO_URI ? '✅ SET' : '❌ NOT SET');
 console.log('JWT_SECRET:', process.env.JWT_SECRET ? '✅ SET' : '❌ NOT SET');
-console.log('GCS_BUCKET_NAME:', process.env.GCS_BUCKET_NAME || '❌ NOT SET');
-console.log('GCS_PROJECT_ID:', process.env.GCS_PROJECT_ID || '❌ NOT SET');
-console.log('GOOGLE_APPLICATION_CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || '✅ NOT SET (using default Cloud auth)');
+console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME || '❌ NOT SET');
+console.log('AWS_REGION:', process.env.AWS_REGION || '❌ NOT SET');
+console.log('AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? '✅ SET' : '❌ NOT SET');
+console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? '✅ SET' : '❌ NOT SET');
 console.log('==============================================');
 
 connectDB();
@@ -106,7 +107,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use(express.json()); // Allows parsing of JSON request bodies
 
 // Serve static files from uploads directory
-// Commented out - now using Google Cloud Storage
+// Commented out - now using AWS S3 Storage
 // app.use('/uploads', express.static('uploads'));
 
 // ✅ Root route

@@ -2,8 +2,7 @@ node_modules/
 .env
 dist/
 logs/
-google-cloud-key.json
-gcs-key.json
+aws-credentials.json
 *.backup
 
 # Uploads directory (only for local development)

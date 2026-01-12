@@ -46,7 +46,7 @@ PRODUCT_EXCEL_UPLOAD_FORMAT.md
 QUICK_START_GCS.md
 
 # Template files
-google-cloud-key.json.template
+aws-credentials.json.template
 
 # IDE
 .vscode/

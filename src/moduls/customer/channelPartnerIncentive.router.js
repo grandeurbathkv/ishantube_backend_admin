@@ -10,12 +10,12 @@ import {
   generateIncentivesPDF
 } from './channelPartnerIncentive.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
-import { 
-  uploadIncentiveImage, 
-  handleUploadError, 
+import {
+  uploadIncentiveImage,
+  handleUploadError,
   processUploadedFile,
   uploadExcelFile
-} from '../../middleware/gcs.upload.middleware.js';
+} from '../../middleware/s3.upload.middleware.js';
 
 const router = express.Router();
 

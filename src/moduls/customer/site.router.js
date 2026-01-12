@@ -13,7 +13,7 @@ import { protect } from '../../middleware/user.middleware.js';
 import {
   uploadExcelFile,
   handleUploadError
-} from '../../middleware/gcs.upload.middleware.js';
+} from '../../middleware/s3.upload.middleware.js';
 
 const router = express.Router();
 

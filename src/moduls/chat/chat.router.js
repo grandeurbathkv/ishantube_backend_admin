@@ -1,7 +1,7 @@
 import express from 'express';
 import * as chatController from './chat.controller.js';
 import { authenticateToken } from '../../middleware/user.middleware.js';
-import { uploadChatAttachment } from '../../middleware/gcs.upload.middleware.js';
+import { uploadChatAttachment } from '../../middleware/s3.upload.middleware.js';
 
 const router = express.Router();
 

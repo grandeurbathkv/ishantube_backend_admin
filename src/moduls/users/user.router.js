@@ -1,7 +1,7 @@
 
 import express from 'express';
 import { protect, superAdminAuth } from '../../middleware/user.middleware.js';
-import { uploadUserImage, handleUploadError, processUploadedFile } from '../../middleware/gcs.upload.middleware.js';
+import { uploadUserImage, handleUploadError, processUploadedFile } from '../../middleware/s3.upload.middleware.js';
 import { registerUser, loginUser, logoutUser, getUserProfile, getUserDropdown, createTestUsers, getAllUsers, updateUser, deleteUser } from './user.controller.js';
 
 const router = express.Router();
