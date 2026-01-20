@@ -6,7 +6,7 @@ import XLSX from 'xlsx';
 export const createQuotation = async (req, res) => {
     try {
         const userId = req.user?._id || req.user?.id;
-        const userName = req.user?.User_Name || 'Unknown User';
+        const userName = req.user?.['User Name'] || req.user?.name || 'Unknown User';
 
         // Validate required fields
         if (!req.body.company_id) {
@@ -50,7 +50,7 @@ export const createQuotation = async (req, res) => {
 
     } catch (error) {
         console.error('Error creating quotation:', error);
-        
+
         if (error.code === 11000) {
             return res.status(400).json({
                 success: false,
@@ -129,7 +129,7 @@ export const getAllQuotations = async (req, res) => {
             .populate('company_id', 'Company_Name Company_Short_Code')
             .populate('party_id', 'Party_Billing_Name Party_id')
             .populate('site_id', 'Site_Billing_Name Site_id')
-            .populate('created_by', 'User_Name User_Email')
+            .populate('created_by', 'User Name Email id')
             .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
@@ -183,8 +183,8 @@ export const getQuotationById = async (req, res) => {
             .populate('company_id')
             .populate('party_id', 'Party_Billing_Name Party_id Party_Gstno Party_Address Party_city Party_State Contact_Person Mobile_Number Email_id')
             .populate('site_id')
-            .populate('created_by', 'User_Name User_Email')
-            .populate('updated_by', 'User_Name User_Email');
+            .populate('created_by', 'User Name Email id')
+            .populate('updated_by', 'User Name Email id');
 
         if (!quotation) {
             return res.status(404).json({
@@ -443,7 +443,7 @@ export const downloadQuotationPDF = async (req, res) => {
             .populate('company_id')
             .populate('party_id')
             .populate('site_id')
-            .populate('created_by', 'User_Name User_Email');
+            .populate('created_by', 'User Name Email id');
 
         if (!quotation) {
             return res.status(404).json({
@@ -486,7 +486,7 @@ export const downloadQuotationExcel = async (req, res) => {
             .populate('company_id')
             .populate('party_id')
             .populate('site_id')
-            .populate('created_by', 'User_Name User_Email');
+            .populate('created_by', 'User Name Email id');
 
         if (!quotation) {
             return res.status(404).json({
@@ -526,13 +526,13 @@ export const downloadQuotationExcel = async (req, res) => {
         quotation.groups?.forEach((group, groupIndex) => {
             // Add group header
             itemsData.push([`${group.group_name || `Group ${groupIndex + 1}`} - ${group.group_category || ''}`]);
-            
+
             // Add items in the group
             group.items?.forEach((item) => {
-                const discount = item.discount > 0 
-                    ? `-${item.discount}${item.discount_type === 'percentage' ? '%' : '₹'}` 
+                const discount = item.discount > 0
+                    ? `-${item.discount}${item.discount_type === 'percentage' ? '%' : '₹'}`
                     : '-';
-                
+
                 itemsData.push([
                     itemCounter++,
                     item.product_name || '',
@@ -544,7 +544,7 @@ export const downloadQuotationExcel = async (req, res) => {
                     `₹${item.total_amount?.toFixed(2) || '0.00'}`
                 ]);
             });
-            
+
             // Add empty row after each group
             itemsData.push([]);
         });
@@ -694,7 +694,7 @@ export const getFilteredQuotations = async (req, res) => {
                 message: 'Company ID is required'
             });
         }
-        
+
         // Check if company_id is valid ObjectId, otherwise search by name
         if (mongoose.Types.ObjectId.isValid(company_id)) {
             filter.company_id = company_id;
@@ -708,7 +708,7 @@ export const getFilteredQuotations = async (req, res) => {
             // First try to find party by Party_id string field
             const Party = mongoose.model('Party');
             const party = await Party.findOne({ Party_id: party_id });
-            
+
             if (party) {
                 filter.party_id = party._id;
                 console.log('Found party by Party_id:', party_id, '-> ObjectId:', party._id);
@@ -725,7 +725,7 @@ export const getFilteredQuotations = async (req, res) => {
             // Site_id might be string like "SITE001" or ObjectId
             const Site = mongoose.model('Site');
             const site = await Site.findOne({ Site_id: site_id });
-            
+
             if (site) {
                 filter.site_id = site._id;
                 console.log('Found site by Site_id:', site_id, '-> ObjectId:', site._id);
@@ -748,7 +748,7 @@ export const getFilteredQuotations = async (req, res) => {
             .populate('company_id', 'Company_Name Company_Short_Code Company_Address Company_Gst_No')
             .populate('party_id', 'Party_Billing_Name Party_id Contact_Person Mobile_Number Party_Address')
             .populate('site_id', 'Site_Billing_Name Site_id Contact_Person Mobile_Number Site_Address')
-            .populate('created_by', 'User_Name User_Email')
+            .populate('created_by', 'User Name Email id')
             .sort({ quotation_date: -1 });
 
         console.log('Found quotations:', quotations.length);

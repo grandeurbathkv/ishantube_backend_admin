@@ -21,6 +21,9 @@ import purchaseRequestRouter from '../moduls/Inventory/purchaseRequest.router.js
 // Import chat router
 import chatRouter from '../moduls/chat/chat.router.js';
 
+// Import dashboard router
+import dashboardRouter from '../moduls/dashboard/dashboard.router.js';
+
 const router = express.Router();
 
 router.use('/user', userRouter);
@@ -42,6 +45,7 @@ router.use('/dispatch', dispatchRouter);
 router.use('/payment-receipt', paymentReceiptRouter);
 router.use('/purchase-request', purchaseRequestRouter);
 router.use('/chat', chatRouter);
+router.use('/dashboard', dashboardRouter);
 
 
 export default router;
