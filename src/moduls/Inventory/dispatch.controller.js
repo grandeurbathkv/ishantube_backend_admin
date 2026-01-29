@@ -59,10 +59,10 @@ export const createDispatch = async (req, res) => {
         for (const dispatchItem of req.body.items) {
             // Find the item in order and update dispatched quantity
             for (const group of order.groups) {
-                const orderItem = group.items.find(item => 
+                const orderItem = group.items.find(item =>
                     item.product_id.toString() === dispatchItem.product_id.toString()
                 );
-                
+
                 if (orderItem) {
                     // Increment dispatched quantity
                     orderItem.dispatched_quantity = (orderItem.dispatched_quantity || 0) + (dispatchItem.quantity || 0);
@@ -74,9 +74,41 @@ export const createDispatch = async (req, res) => {
             }
         }
 
+        // Determine order status based on dispatched quantities
+        let allItemsFullyDispatched = true;
+        let anyItemPartiallyDispatched = false;
+
+        for (const group of order.groups) {
+            for (const item of group.items) {
+                const dispatchedQty = item.dispatched_quantity || 0;
+                const orderQty = item.quantity || 0;
+
+                if (dispatchedQty >= orderQty) {
+                    // This item is fully dispatched
+                    continue;
+                } else if (dispatchedQty > 0 && dispatchedQty < orderQty) {
+                    // This item is partially dispatched
+                    anyItemPartiallyDispatched = true;
+                    allItemsFullyDispatched = false;
+                } else {
+                    // This item has not been dispatched yet
+                    allItemsFullyDispatched = false;
+                }
+            }
+        }
+
+        // Update order status based on dispatch status
+        if (allItemsFullyDispatched) {
+            order.status = 'dispatching';
+            console.log('✅ All items fully dispatched - Status changed to: dispatching');
+        } else if (anyItemPartiallyDispatched) {
+            order.status = 'partially dispatched';
+            console.log('✅ Some items partially dispatched - Status changed to: partially dispatched');
+        }
+
         // Save updated order
         await order.save();
-        console.log('Order updated with dispatched quantities');
+        console.log('Order updated with dispatched quantities and status');
 
         res.status(201).json({
             success: true,
