@@ -64,9 +64,7 @@ const orderItemSchema = new mongoose.Schema({
     },
     balance_quantity: {
         type: Number,
-        default: function () {
-            return this.quantity;
-        }
+        default: 0
     },
     available_quantity: {
         type: Number,

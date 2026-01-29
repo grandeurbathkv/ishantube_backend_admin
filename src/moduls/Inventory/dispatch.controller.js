@@ -77,33 +77,52 @@ export const createDispatch = async (req, res) => {
         // Determine order status based on dispatched quantities
         let allItemsFullyDispatched = true;
         let anyItemPartiallyDispatched = false;
+        let totalItems = 0;
+        let fullyDispatchedItems = 0;
+        let partiallyDispatchedItems = 0;
 
         for (const group of order.groups) {
             for (const item of group.items) {
+                totalItems++;
                 const dispatchedQty = item.dispatched_quantity || 0;
                 const orderQty = item.quantity || 0;
 
+                console.log(`  📦 ${item.product_code}: Order=${orderQty}, Dispatched=${dispatchedQty}`);
+
                 if (dispatchedQty >= orderQty) {
                     // This item is fully dispatched
-                    continue;
+                    fullyDispatchedItems++;
+                    console.log(`     ✅ Fully dispatched`);
                 } else if (dispatchedQty > 0 && dispatchedQty < orderQty) {
                     // This item is partially dispatched
+                    partiallyDispatchedItems++;
                     anyItemPartiallyDispatched = true;
                     allItemsFullyDispatched = false;
+                    console.log(`     🟡 Partially dispatched`);
                 } else {
                     // This item has not been dispatched yet
                     allItemsFullyDispatched = false;
+                    console.log(`     ⭕ Not dispatched`);
                 }
             }
         }
 
+        console.log(`\n📊 Dispatch Summary:`);
+        console.log(`   Total Items: ${totalItems}`);
+        console.log(`   Fully Dispatched: ${fullyDispatchedItems}`);
+        console.log(`   Partially Dispatched: ${partiallyDispatchedItems}`);
+        console.log(`   Not Dispatched: ${totalItems - fullyDispatchedItems - partiallyDispatchedItems}`);
+
         // Update order status based on dispatch status
-        if (allItemsFullyDispatched) {
+        const previousStatus = order.status;
+        if (allItemsFullyDispatched && totalItems > 0) {
             order.status = 'dispatching';
-            console.log('✅ All items fully dispatched - Status changed to: dispatching');
+            console.log(`\n✅ Status Update: "${previousStatus}" → "dispatching" (All items fully dispatched)`);
         } else if (anyItemPartiallyDispatched) {
             order.status = 'partially dispatched';
-            console.log('✅ Some items partially dispatched - Status changed to: partially dispatched');
+            console.log(`\n🟡 Status Update: "${previousStatus}" → "partially dispatched" (Some items partially dispatched)`);
+        } else {
+            console.log(`\n⚪ Status remains: "${previousStatus}" (No change)`);
         }
 
         // Save updated order

@@ -189,6 +189,18 @@ export const createOrder = async (req, res) => {
             approvalStatus = 'pending_approval';
         }
 
+        // Initialize balance_quantity for all items
+        if (req.body.groups && Array.isArray(req.body.groups)) {
+            req.body.groups.forEach(group => {
+                if (group.items && Array.isArray(group.items)) {
+                    group.items.forEach(item => {
+                        item.dispatched_quantity = item.dispatched_quantity || 0;
+                        item.balance_quantity = item.quantity - (item.dispatched_quantity || 0);
+                    });
+                }
+            });
+        }
+
         // Create order data
         const orderData = {
             ...req.body,
