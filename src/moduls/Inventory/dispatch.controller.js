@@ -8,6 +8,7 @@ export const createDispatch = async (req, res) => {
         const userName = req.user?.User_Name || 'Unknown User';
 
         console.log('Creating dispatch note:', req.body);
+        console.log('Dispatch Items received:', JSON.stringify(req.body.items, null, 2));
 
         // Validate
         if (!req.body.order_id) {
@@ -54,6 +55,7 @@ export const createDispatch = async (req, res) => {
         await dispatch.save();
 
         console.log('Dispatch created:', dispatch.dispatch_no);
+        console.log('Dispatch items saved:', JSON.stringify(dispatch.items, null, 2));
 
         // Update order items with dispatched quantities
         for (const dispatchItem of req.body.items) {
@@ -222,6 +224,9 @@ export const getDispatchById = async (req, res) => {
                 message: 'Dispatch not found'
             });
         }
+
+        console.log('📤 Sending dispatch to frontend:');
+        console.log('Dispatch Items being sent:', JSON.stringify(dispatch.items, null, 2));
 
         res.status(200).json({
             success: true,

@@ -24,8 +24,13 @@ const dispatchItemSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    mrp: Number,
+    discount: Number,
+    discount_percentage: Number,
     net_rate: Number,
-    total_amount: Number
+    total_amount: Number,
+    gst_percentage: Number,
+    gst_amount: Number
 });
 
 // Dispatch Note Schema
@@ -38,7 +43,7 @@ const dispatchSchema = new mongoose.Schema({
         type: Date,
         required: true
     },
-    
+
     // Order Reference
     order_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -49,7 +54,7 @@ const dispatchSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    
+
     // Company & Party Info
     company_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -69,10 +74,10 @@ const dispatchSchema = new mongoose.Schema({
     },
     site_name: String,
     site_address: String,
-    
+
     // Dispatch Items
     items: [dispatchItemSchema],
-    
+
     // Dispatch Details
     notes: {
         type: String,
@@ -81,14 +86,14 @@ const dispatchSchema = new mongoose.Schema({
     vehicle_number: String,
     driver_name: String,
     driver_mobile: String,
-    
+
     // Status
     status: {
         type: String,
         enum: ['pending', 'in-transit', 'delivered', 'cancelled'],
         default: 'pending'
     },
-    
+
     // Tracking
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
@@ -101,7 +106,7 @@ const dispatchSchema = new mongoose.Schema({
 });
 
 // Auto-generate dispatch number
-dispatchSchema.pre('save', async function(next) {
+dispatchSchema.pre('save', async function (next) {
     if (!this.dispatch_no) {
         const count = await mongoose.model('Dispatch').countDocuments();
         const dispatchNumber = `DN${String(count + 1).padStart(6, '0')}`;
