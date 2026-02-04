@@ -15,6 +15,7 @@ import companyRouter from '../moduls/company/company.router.js';
 import quotationRouter from '../moduls/Inventory/quotation.router.js';
 import orderRouter from '../moduls/Inventory/order.router.js';
 import dispatchRouter from '../moduls/Inventory/dispatch.router.js';
+import pendingDispatchRouter from '../moduls/Inventory/pendingDispatch.router.js';
 import paymentReceiptRouter from '../moduls/Inventory/paymentReceipt.router.js';
 import purchaseRequestRouter from '../moduls/Inventory/purchaseRequest.router.js';
 
@@ -42,6 +43,7 @@ router.use('/company', companyRouter);
 router.use('/quotation', quotationRouter);
 router.use('/order', orderRouter);
 router.use('/dispatch', dispatchRouter);
+router.use('/pending-dispatch', pendingDispatchRouter);
 router.use('/payment-receipt', paymentReceiptRouter);
 router.use('/purchase-request', purchaseRequestRouter);
 router.use('/chat', chatRouter);
