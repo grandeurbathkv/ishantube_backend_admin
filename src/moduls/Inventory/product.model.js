@@ -247,6 +247,12 @@ const productSchema = new mongoose.Schema({
     min: [0, 'In transit quantity cannot be negative'],
     default: 0
   },
+  Product_Total_Sold: {
+    type: Number,
+    required: false,
+    min: [0, 'Total sold quantity cannot be negative'],
+    default: 0
+  },
   Prod_image: {
     type: String,
     trim: true,

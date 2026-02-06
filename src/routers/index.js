@@ -18,6 +18,7 @@ import dispatchRouter from '../moduls/Inventory/dispatch.router.js';
 import pendingDispatchRouter from '../moduls/Inventory/pendingDispatch.router.js';
 import paymentReceiptRouter from '../moduls/Inventory/paymentReceipt.router.js';
 import purchaseRequestRouter from '../moduls/Inventory/purchaseRequest.router.js';
+import sellRecordRouter from '../moduls/Inventory/sellRecord.router.js';
 
 // Import chat router
 import chatRouter from '../moduls/chat/chat.router.js';
@@ -46,8 +47,8 @@ router.use('/dispatch', dispatchRouter);
 router.use('/pending-dispatch', pendingDispatchRouter);
 router.use('/payment-receipt', paymentReceiptRouter);
 router.use('/purchase-request', purchaseRequestRouter);
+router.use('/sell-record', sellRecordRouter);
 router.use('/chat', chatRouter);
 router.use('/dashboard', dashboardRouter);
-
 
 export default router;
