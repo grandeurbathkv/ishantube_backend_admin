@@ -1,5 +1,7 @@
 import Dispatch from './dispatch.model.js';
 import Order from './order.model.js';
+import SellRecord from './sellRecord.model.js';
+import mongoose from 'mongoose';
 
 // Create dispatch note
 export const createDispatch = async (req, res) => {
@@ -283,3 +285,153 @@ export const updateDispatchStatus = async (req, res) => {
         });
     }
 };
+
+// Helper function to generate bill number
+const generateBillNumber = async () => {
+    const currentYear = new Date().getFullYear();
+    const prefix = `BILL${currentYear}`;
+
+    const lastRecord = await SellRecord.findOne({
+        bill_number: { $regex: `^${prefix}` }
+    }).sort({ bill_number: -1 });
+
+    let nextNumber = 1;
+    if (lastRecord) {
+        const lastNumber = parseInt(lastRecord.bill_number.replace(prefix, ""));
+        nextNumber = lastNumber + 1;
+    }
+
+    return `${prefix}${nextNumber.toString().padStart(4, "0")}`;
+};
+
+// Create sell record from dispatch
+export const createSellRecordFromDispatch = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+        const { dispatchId } = req.params;
+        const {
+            bill_date,
+            bill_amount,
+            mode_of_transport,
+            vehicle_number,
+            freight_remarks,
+            transport_incharge_number,
+            notes
+        } = req.body;
+
+        const userId = req.user?._id || req.user?.id;
+
+        // Get dispatch details
+        const dispatch = await Dispatch.findById(dispatchId)
+            .populate('order_id')
+            .session(session);
+
+        if (!dispatch) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({
+                success: false,
+                message: 'Dispatch not found'
+            });
+        }
+
+        // Check if sell record already created for this dispatch
+        if (dispatch.sell_record_created) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({
+                success: false,
+                message: 'Sell record already created for this dispatch'
+            });
+        }
+
+        // Generate bill number
+        const bill_number = await generateBillNumber();
+
+        // Prepare sell record items from dispatch items
+        const sellRecordItems = dispatch.items.map(item => ({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            product_code: item.product_code,
+            quantity: item.quantity,
+            rate: item.net_rate || item.mrp,
+            amount: item.total_amount || (item.quantity * (item.net_rate || item.mrp))
+        }));
+
+        // Create sell record
+        const sellRecord = new SellRecord({
+            bill_number,
+            bill_date: new Date(bill_date),
+            bill_amount: bill_amount,
+            customer_name: dispatch.party_billing_name || dispatch.party_name,
+            customer_phone: '',
+            customer_address: dispatch.site_address || dispatch.party_address,
+            items: sellRecordItems,
+            status: 'completed',
+            payment_status: 'pending',
+            mode_of_transport,
+            vehicle_number,
+            freight_remarks,
+            transport_incharge_number,
+            notes,
+            dispatch_id: dispatch._id,
+            order_id: dispatch.order_id,
+            created_by: userId
+        });
+
+        await sellRecord.save({ session });
+
+        // Update dispatch to mark sell record created
+        dispatch.sell_record_id = sellRecord._id;
+        dispatch.sell_record_created = true;
+        await dispatch.save({ session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(201).json({
+            success: true,
+            message: 'Sell record created successfully from dispatch',
+            data: {
+                sellRecord,
+                dispatch
+            }
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error('Error creating sell record from dispatch:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to create sell record from dispatch'
+        });
+    }
+};
+
+// Get dispatches by order ID
+export const getDispatchesByOrderId = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const dispatches = await Dispatch.find({ order_id: orderId })
+            .populate('sell_record_id')
+            .sort({ dispatch_date: -1 });
+
+        res.status(200).json({
+            success: true,
+            data: dispatches
+        });
+
+    } catch (error) {
+        console.error('Error fetching dispatches by order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch dispatches',
+            error: error.message
+        });
+    }
+};
+

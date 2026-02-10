@@ -94,6 +94,16 @@ const dispatchSchema = new mongoose.Schema({
         default: 'pending'
     },
 
+    // Sell Record Reference
+    sell_record_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SellRecord'
+    },
+    sell_record_created: {
+        type: Boolean,
+        default: false
+    },
+
     // Tracking
     created_by: {
         type: mongoose.Schema.Types.ObjectId,

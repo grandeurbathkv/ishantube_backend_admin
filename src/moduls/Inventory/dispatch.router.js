@@ -19,4 +19,10 @@ router.get('/:id', dispatchController.getDispatchById);
 // Update dispatch status
 router.patch('/:id/status', dispatchController.updateDispatchStatus);
 
+// Create sell record from dispatch
+router.post('/:dispatchId/create-sell-record', dispatchController.createSellRecordFromDispatch);
+
+// Get dispatches by order ID
+router.get('/order/:orderId', dispatchController.getDispatchesByOrderId);
+
 export default router;

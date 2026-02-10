@@ -90,6 +90,32 @@ const sellRecordSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // Transport Details
+        mode_of_transport: {
+            type: String,
+            trim: true,
+        },
+        vehicle_number: {
+            type: String,
+            trim: true,
+        },
+        freight_remarks: {
+            type: String,
+            trim: true,
+        },
+        transport_incharge_number: {
+            type: String,
+            trim: true,
+        },
+        // Dispatch Reference
+        dispatch_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Dispatch",
+        },
+        order_id: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Order",
+        },
         created_by: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
