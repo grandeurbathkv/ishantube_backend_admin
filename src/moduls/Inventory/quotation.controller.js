@@ -2,6 +2,11 @@ import Quotation from './quotation.model.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 
+// Utility function to round to 2 decimal places
+const roundTo2Decimals = (num) => {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 // Create a new quotation
 export const createQuotation = async (req, res) => {
     try {
@@ -29,6 +34,35 @@ export const createQuotation = async (req, res) => {
                 message: 'At least one group with items is required'
             });
         }
+
+        // Round all numerical values in groups
+        if (req.body.groups && Array.isArray(req.body.groups)) {
+            req.body.groups.forEach(group => {
+                if (group.items && Array.isArray(group.items)) {
+                    group.items.forEach(item => {
+                        if (item.mrp) item.mrp = roundTo2Decimals(item.mrp);
+                        if (item.discount) item.discount = roundTo2Decimals(item.discount);
+                        if (item.net_rate) item.net_rate = roundTo2Decimals(item.net_rate);
+                        if (item.total_amount) item.total_amount = roundTo2Decimals(item.total_amount);
+                        if (item.gst_percentage) item.gst_percentage = roundTo2Decimals(item.gst_percentage);
+                    });
+                }
+                if (group.subtotal) group.subtotal = roundTo2Decimals(group.subtotal);
+                if (group.total_discount) group.total_discount = roundTo2Decimals(group.total_discount);
+                if (group.total_amount) group.total_amount = roundTo2Decimals(group.total_amount);
+            });
+        }
+
+        // Round financial values
+        if (req.body.grand_total) req.body.grand_total = roundTo2Decimals(req.body.grand_total);
+        if (req.body.freight_charges) req.body.freight_charges = roundTo2Decimals(req.body.freight_charges);
+        if (req.body.net_amount_before_tax) req.body.net_amount_before_tax = roundTo2Decimals(req.body.net_amount_before_tax);
+        if (req.body.gst_amount) req.body.gst_amount = roundTo2Decimals(req.body.gst_amount);
+        if (req.body.gst_percentage) req.body.gst_percentage = roundTo2Decimals(req.body.gst_percentage);
+        if (req.body.net_amount_payable) req.body.net_amount_payable = roundTo2Decimals(req.body.net_amount_payable);
+        if (req.body.additional_discount) req.body.additional_discount = roundTo2Decimals(req.body.additional_discount);
+        if (req.body.coupon_discount) req.body.coupon_discount = roundTo2Decimals(req.body.coupon_discount);
+        if (req.body.roundoff_amount) req.body.roundoff_amount = roundTo2Decimals(req.body.roundoff_amount);
 
         // Create quotation data
         const quotationData = {

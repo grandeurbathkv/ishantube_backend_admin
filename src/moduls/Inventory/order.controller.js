@@ -151,6 +151,11 @@ import mongoose from 'mongoose';
 import { Product } from '../Inventory/product.model.js';
 import { sendOrderApprovalNotification, sendOrderRejectionNotification, sendNewOrderNotification } from '../../utils/notificationHelper.js';
 
+// Utility function to round to 2 decimal places
+const roundTo2Decimals = (num) => {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 // Create a new order
 export const createOrder = async (req, res) => {
     try {
@@ -194,12 +199,32 @@ export const createOrder = async (req, res) => {
             req.body.groups.forEach(group => {
                 if (group.items && Array.isArray(group.items)) {
                     group.items.forEach(item => {
+                        // Round all numerical values
+                        if (item.mrp) item.mrp = roundTo2Decimals(item.mrp);
+                        if (item.discount) item.discount = roundTo2Decimals(item.discount);
+                        if (item.net_rate) item.net_rate = roundTo2Decimals(item.net_rate);
+                        if (item.total_amount) item.total_amount = roundTo2Decimals(item.total_amount);
+                        if (item.gst_percentage) item.gst_percentage = roundTo2Decimals(item.gst_percentage);
+
                         item.dispatched_quantity = item.dispatched_quantity || 0;
                         item.balance_quantity = item.quantity - (item.dispatched_quantity || 0);
                     });
                 }
+                // Round group totals
+                if (group.subtotal) group.subtotal = roundTo2Decimals(group.subtotal);
+                if (group.total_discount) group.total_discount = roundTo2Decimals(group.total_discount);
+                if (group.total_amount) group.total_amount = roundTo2Decimals(group.total_amount);
             });
         }
+
+        // Round financial values
+        if (req.body.grand_total) req.body.grand_total = roundTo2Decimals(req.body.grand_total);
+        if (req.body.freight_charges) req.body.freight_charges = roundTo2Decimals(req.body.freight_charges);
+        if (req.body.gst_amount) req.body.gst_amount = roundTo2Decimals(req.body.gst_amount);
+        if (req.body.gst_percentage) req.body.gst_percentage = roundTo2Decimals(req.body.gst_percentage);
+        if (req.body.net_amount_payable) req.body.net_amount_payable = roundTo2Decimals(req.body.net_amount_payable);
+        if (req.body.additional_discount) req.body.additional_discount = roundTo2Decimals(req.body.additional_discount);
+        if (req.body.amount_paid) req.body.amount_paid = roundTo2Decimals(req.body.amount_paid);
 
         // Create order data
         const orderData = {
@@ -208,7 +233,7 @@ export const createOrder = async (req, res) => {
             created_by_name: userName,
             status: req.body.status || 'pending',
             payment_status: req.body.payment_status || 'pending',
-            balance_amount: req.body.net_amount_payable - (req.body.amount_paid || 0),
+            balance_amount: roundTo2Decimals(req.body.net_amount_payable - (req.body.amount_paid || 0)),
             approval_status: approvalStatus
         };
 

@@ -1,15 +1,20 @@
-import { 
-  Product, 
-  ProductBrand, 
-  ProductColor, 
-  ProductCategory, 
-  ProductSubCategory, 
-  ProductSeries 
+import {
+  Product,
+  ProductBrand,
+  ProductColor,
+  ProductCategory,
+  ProductSubCategory,
+  ProductSeries
 } from './product.model.js';
 import mongoose from 'mongoose';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+
+// Utility function to round to 2 decimal places
+const roundTo2Decimals = (num) => {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+};
 
 // ========== Main Product Management (Consolidated CRUD) ==========
 const manageProducts = async (req, res) => {
@@ -97,7 +102,7 @@ const manageProducts = async (req, res) => {
           Product_sample_stock: Product_sample_stock || 0,
           Prod_Showroom_stock: Prod_Showroom_stock || 0,
           Prod_image: Prod_image || '',
-          Product_gst: Product_gst || 0,
+          Product_gst: roundTo2Decimals(parseFloat(Product_gst) || 0),
           Product_fragile: Product_fragile || false,
           Product_Notes: Product_Notes || '',
           Product_mustorder: Product_mustorder || 'NA',
@@ -145,7 +150,7 @@ const manageProducts = async (req, res) => {
           } = req.query;
 
           let filter = {};
-          
+
           // Search functionality
           if (search) {
             filter.$or = [
@@ -168,7 +173,7 @@ const manageProducts = async (req, res) => {
           if (fragile !== undefined) filter.Product_fragile = fragile === 'true';
 
           const skip = (parseInt(page) - 1) * parseInt(limit);
-          
+
           const products = await Product.find(filter)
             .populate('created_by', 'name email')
             .sort({ createdAt: -1 })
@@ -185,7 +190,7 @@ const manageProducts = async (req, res) => {
             page: parseInt(page),
             totalPages: Math.ceil(total / parseInt(limit)),
             filters: {
-              search, brand, category, sub_category, series, 
+              search, brand, category, sub_category, series,
               product_type, color, flag, fragile
             },
             data: products
@@ -584,7 +589,7 @@ const getProductDropdown = async (req, res) => {
     const { search, limit = 100 } = req.query;
 
     let filter = {};
-    
+
     // Search functionality
     if (search) {
       filter.$or = [
@@ -628,11 +633,11 @@ const getProductDropdown = async (req, res) => {
 // ========== Product Filter API (Combined Function) ==========
 const getProductFilters = async (req, res) => {
   try {
-    const { 
-      brand, 
-      category, 
-      subcategory, 
-      page = 1, 
+    const {
+      brand,
+      category,
+      subcategory,
+      page = 1,
       limit = 50,
       type = 'products' // 'products', 'options', 'brands', 'categories', 'subcategories'
     } = req.query;
@@ -674,7 +679,7 @@ const getProductFilters = async (req, res) => {
           const allBrands = await Product.distinct('Product_Brand');
           const allCategories = await Product.distinct('Product_Category');
           const allSubCategories = await Product.distinct('Product_Sub_Category');
-          
+
           result = {
             brands: allBrands.filter(brand => brand && brand.trim() !== ''),
             categories: allCategories.filter(cat => cat && cat.trim() !== ''),
@@ -741,7 +746,7 @@ const getProductFilters = async (req, res) => {
       // If no filters, get all brands and categories
       const allBrands = await Product.distinct('Product_Brand');
       cascadeData.brands = allBrands.filter(brand => brand && brand.trim() !== '');
-      
+
       const allCategories = await Product.distinct('Product_Category');
       cascadeData.categories = allCategories.filter(cat => cat && cat.trim() !== '');
     }
@@ -788,7 +793,7 @@ const uploadProductsFromExcel = async (req, res, next) => {
     console.log('Request body:', req.body);
     console.log('Request file:', req.file);
     console.log('========================================');
-    
+
     // Check if file is uploaded
     if (!req.file) {
       console.log('ERROR: No file uploaded');
@@ -799,13 +804,13 @@ const uploadProductsFromExcel = async (req, res, next) => {
     }
 
     console.log('STEP 2: File received:', req.file.originalname);
-    
+
     // Validate file type
     const allowedExtensions = ['.xlsx', '.xls'];
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
-    
+
     console.log('STEP 3: Validating file extension:', fileExtension);
-    
+
     if (!allowedExtensions.includes(fileExtension)) {
       console.log('ERROR: Invalid file extension');
       return res.status(400).json({
@@ -815,19 +820,19 @@ const uploadProductsFromExcel = async (req, res, next) => {
     }
 
     console.log('STEP 4: Reading Excel file from path:', req.file.path);
-    
+
     // Read Excel file
     const workbook = XLSX.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0]; // Get first sheet
     const worksheet = workbook.Sheets[sheetName];
-    
+
     console.log('STEP 5: Excel file read successfully, sheet name:', sheetName);
-    
+
     // Convert to JSON
     const jsonData = XLSX.utils.sheet_to_json(worksheet);
-    
+
     console.log('STEP 6: Excel data converted to JSON');
-    
+
     if (!jsonData || jsonData.length === 0) {
       console.log('ERROR: Excel file is empty');
       return res.status(400).json({
@@ -1010,7 +1015,7 @@ const uploadProductsFromExcel = async (req, res, next) => {
         if (productSubCategory && productCategory) {
           await ProductSubCategory.getOrCreate(productSubCategory, productCategory, userId);
         }
-        
+
         const productSeries = findColumnValue(row, 'Product_Series');
         if (productSeries) {
           await ProductSeries.getOrCreate(productSeries, userId);
@@ -1038,7 +1043,7 @@ const uploadProductsFromExcel = async (req, res, next) => {
           Product_Damage_stock: parseFloat(findColumnValue(row, 'Product_Damage_stock')) || 0,
           Product_sample_stock: parseFloat(findColumnValue(row, 'Product_sample_stock')) || 0,
           Prod_Showroom_stock: parseFloat(findColumnValue(row, 'Prod_Showroom_stock')) || 0,
-          Product_gst: parseFloat(findColumnValue(row, 'Product_gst')) || 0,
+          Product_gst: roundTo2Decimals(parseFloat(findColumnValue(row, 'Product_gst')) || 0),
           Product_fragile: findColumnValue(row, 'Product_fragile') === 'true' || findColumnValue(row, 'Product_fragile') === true || false,
           Product_Notes: findColumnValue(row, 'Product_Notes') || '',
           Product_mustorder: findColumnValue(row, 'Product_mustorder') || 'NA',
@@ -1103,7 +1108,7 @@ const uploadProductsFromExcel = async (req, res, next) => {
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     console.error('========================================');
-    
+
     // Clean up uploaded file in case of error
     if (req.file && req.file.path) {
       try {
@@ -1113,7 +1118,7 @@ const uploadProductsFromExcel = async (req, res, next) => {
         console.warn('WARNING: Could not delete uploaded file:', cleanupError.message);
       }
     }
-    
+
     next(error);
   }
 };
@@ -1128,28 +1133,28 @@ const generateProductsPDF = async (req, res, next) => {
     console.log('STEP 1: Product PDF generation initiated...');
     console.log('Query parameters:', req.query);
     console.log('========================================');
-    
+
     // Dynamic import of jsPDF to handle ES module compatibility
     console.log('STEP 2: Loading jsPDF module...');
     const jsPDFModule = await import('jspdf');
     const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
     await import('jspdf-autotable');
     console.log('STEP 2: jsPDF module loaded successfully');
-    
+
     // Get query parameters for filtering
-    const { 
-      search, 
-      brand, 
-      category, 
-      sub_category, 
-      product_type, 
+    const {
+      search,
+      brand,
+      category,
+      sub_category,
+      product_type,
       color,
-      includeStock = 'false' 
+      includeStock = 'false'
     } = req.query;
-    
+
     console.log('STEP 3: Building filter...');
     console.log('includeStock parameter:', includeStock);
-    
+
     let filter = {};
 
     // Apply search filter if provided
@@ -1227,7 +1232,7 @@ const generateProductsPDF = async (req, res, next) => {
       minute: '2-digit'
     });
     doc.text(`Generated on: ${currentDate}`, 14, 28);
-    
+
     let yPos = 33;
     if (search) {
       doc.text(`Search Filter: "${search}"`, 14, yPos);
@@ -1241,7 +1246,7 @@ const generateProductsPDF = async (req, res, next) => {
       doc.text(`Category Filter: "${category}"`, 14, yPos);
       yPos += 5;
     }
-    
+
     doc.text(`Total Records: ${products.length}`, 14, yPos);
     yPos += 5;
 

@@ -3,6 +3,11 @@ import Order from './order.model.js';
 import SellRecord from './sellRecord.model.js';
 import mongoose from 'mongoose';
 
+// Utility function to round to 2 decimal places
+const roundTo2Decimals = (num) => {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 // Create dispatch note
 export const createDispatch = async (req, res) => {
     try {
@@ -356,8 +361,8 @@ export const createSellRecordFromDispatch = async (req, res) => {
             product_name: item.product_name,
             product_code: item.product_code,
             quantity: item.quantity,
-            rate: item.net_rate || item.mrp,
-            amount: item.total_amount || (item.quantity * (item.net_rate || item.mrp))
+            rate: roundTo2Decimals(item.net_rate || item.mrp),
+            amount: roundTo2Decimals(item.total_amount || (item.quantity * (item.net_rate || item.mrp)))
         }));
 
         // Create sell record
