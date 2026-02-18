@@ -60,9 +60,9 @@ export const createSellRecord = async (req, res) => {
                 throw new Error(`Product not found: ${item.product_id}`);
             }
 
-            // Check stock availability
-            if (product.Product_Fresh_Stock < item.quantity) {
-                throw new Error(`Insufficient stock for ${product.Product_Description}. Available: ${product.Product_Fresh_Stock}, Required: ${item.quantity}`);
+            // Check stock availability (check on-hold qty)
+            if (product.Product_On_Hold_Qty < item.quantity) {
+                throw new Error(`Insufficient on-hold stock for ${product.Product_Description}. Available on-hold: ${product.Product_On_Hold_Qty}, Required: ${item.quantity}`);
             }
 
             const amount = item.quantity * item.rate;
@@ -77,12 +77,12 @@ export const createSellRecord = async (req, res) => {
                 amount: amount,
             });
 
-            // Update product stock (Product_Fresh_Stock - sell quantity)
+            // Update product stock (Product_On_Hold_Qty - sell quantity)
             await Product.findByIdAndUpdate(
                 product._id,
                 {
                     $inc: {
-                        Product_Fresh_Stock: -item.quantity,
+                        Product_On_Hold_Qty: -item.quantity,
                         Product_Total_Sold: item.quantity,
                     },
                 },
@@ -114,6 +114,25 @@ export const createSellRecord = async (req, res) => {
 
         await sellRecord.save({ session });
         await session.commitTransaction();
+
+        // Emit socket event for real-time stock update
+        const io = req.app.get('io');
+        if (io) {
+            // Emit product stock updates for each item
+            for (const item of processedItems) {
+                const product = await Product.findById(item.product_id);
+                if (product) {
+                    io.emit('product_stock_updated', {
+                        product_id: product._id,
+                        product_code: product.Product_code,
+                        fresh_stock: product.Product_Fresh_Stock,
+                        on_hold_qty: product.Product_On_Hold_Qty,
+                        action: 'sell_record_created',
+                        timestamp: new Date()
+                    });
+                }
+            }
+        }
 
         res.status(201).json({
             success: true,

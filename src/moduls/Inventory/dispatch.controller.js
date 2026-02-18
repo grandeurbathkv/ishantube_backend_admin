@@ -1,6 +1,7 @@
 import Dispatch from './dispatch.model.js';
 import Order from './order.model.js';
 import SellRecord from './sellRecord.model.js';
+import { Product } from './product.model.js';
 import mongoose from 'mongoose';
 
 // Utility function to round to 2 decimal places
@@ -63,6 +64,24 @@ export const createDispatch = async (req, res) => {
 
         console.log('Dispatch created:', dispatch.dispatch_no);
         console.log('Dispatch items saved:', JSON.stringify(dispatch.items, null, 2));
+
+        // Update product stock: Add to on-hold qty and reduce fresh stock
+        for (const dispatchItem of req.body.items) {
+            if (dispatchItem.product_id) {
+                try {
+                    const product = await Product.findById(dispatchItem.product_id);
+                    if (product) {
+                        // Add to on-hold quantity and reduce fresh stock
+                        product.Product_On_Hold_Qty = (product.Product_On_Hold_Qty || 0) + (dispatchItem.quantity || 0);
+                        product.Product_Fresh_Stock = Math.max(0, product.Product_Fresh_Stock - (dispatchItem.quantity || 0));
+                        await product.save();
+                        console.log(`Updated product ${product.Product_code}: Fresh Stock=${product.Product_Fresh_Stock}, On Hold=${product.Product_On_Hold_Qty}`);
+                    }
+                } catch (error) {
+                    console.error(`Error updating product ${dispatchItem.product_id}:`, error);
+                }
+            }
+        }
 
         // Update order items with dispatched quantities
         for (const dispatchItem of req.body.items) {
@@ -137,6 +156,27 @@ export const createDispatch = async (req, res) => {
         // Save updated order
         await order.save();
         console.log('Order updated with dispatched quantities and status');
+
+        // Emit socket event for real-time stock update
+        const io = req.app.get('io');
+        if (io) {
+            // Emit product stock updates for each item
+            for (const dispatchItem of req.body.items) {
+                if (dispatchItem.product_id) {
+                    const product = await Product.findById(dispatchItem.product_id);
+                    if (product) {
+                        io.emit('product_stock_updated', {
+                            product_id: product._id,
+                            product_code: product.Product_code,
+                            fresh_stock: product.Product_Fresh_Stock,
+                            on_hold_qty: product.Product_On_Hold_Qty,
+                            action: 'dispatch_created',
+                            timestamp: new Date()
+                        });
+                    }
+                }
+            }
+        }
 
         res.status(201).json({
             success: true,

@@ -217,6 +217,12 @@ const productSchema = new mongoose.Schema({
     min: [0, 'Fresh stock cannot be negative'],
     default: 0
   },
+  Product_On_Hold_Qty: {
+    type: Number,
+    required: false,
+    min: [0, 'On hold quantity cannot be negative'],
+    default: 0
+  },
   Product_Damage_stock: {
     type: Number,
     required: [true, 'Product damage stock is required'],
@@ -263,7 +269,7 @@ const productSchema = new mongoose.Schema({
     required: [true, 'Product GST is required'],
     min: [0, 'GST cannot be negative'],
     max: [99.99, 'GST cannot exceed 99.99%'],
-    default: 0
+    default: 18
   },
   Product_fragile: {
     type: Boolean,
