@@ -65,17 +65,19 @@ export const createDispatch = async (req, res) => {
         console.log('Dispatch created:', dispatch.dispatch_no);
         console.log('Dispatch items saved:', JSON.stringify(dispatch.items, null, 2));
 
-        // Update product stock: Add to on-hold qty and reduce fresh stock
+        // Update product stock: ONLY increase on-hold qty
+        // NOTE: Fresh stock stays UNCHANGED at dispatch time.
+        // Fresh stock will be reduced only when the Sell Record is created (Step 4).
         for (const dispatchItem of req.body.items) {
             if (dispatchItem.product_id) {
                 try {
                     const product = await Product.findById(dispatchItem.product_id);
                     if (product) {
-                        // Add to on-hold quantity and reduce fresh stock
-                        product.Product_On_Hold_Qty = (product.Product_On_Hold_Qty || 0) + (dispatchItem.quantity || 0);
-                        product.Product_Fresh_Stock = Math.max(0, product.Product_Fresh_Stock - (dispatchItem.quantity || 0));
+                        // ONLY add to on-hold quantity - DO NOT reduce fresh stock here
+                        const prevOnHold = product.Product_On_Hold_Qty || 0;
+                        product.Product_On_Hold_Qty = prevOnHold + (dispatchItem.quantity || 0);
                         await product.save();
-                        console.log(`Updated product ${product.Product_code}: Fresh Stock=${product.Product_Fresh_Stock}, On Hold=${product.Product_On_Hold_Qty}`);
+                        console.log(`✅ Dispatch stock update for ${product.Product_code}: On Hold ${prevOnHold} → ${product.Product_On_Hold_Qty} (+${dispatchItem.quantity}). Fresh Stock UNCHANGED: ${product.Product_Fresh_Stock}`);
                     }
                 } catch (error) {
                     console.error(`Error updating product ${dispatchItem.product_id}:`, error);
@@ -432,6 +434,37 @@ export const createSellRecordFromDispatch = async (req, res) => {
         dispatch.sell_record_id = sellRecord._id;
         dispatch.sell_record_created = true;
         await dispatch.save({ session });
+
+        // ====== STEP 4 STOCK MOVEMENT ======
+        // When sell record is created: reduce BOTH Product_Fresh_Stock AND Product_On_Hold_Qty
+        // This reflects that items have been physically sold and handed over.
+        console.log('📦 Updating product stock for sell record items...');
+        for (const item of sellRecordItems) {
+            try {
+                const product = await Product.findById(item.product_id).session(session);
+                if (product) {
+                    const prevFreshStock = product.Product_Fresh_Stock || 0;
+                    const prevOnHold = product.Product_On_Hold_Qty || 0;
+
+                    // Reduce fresh stock by sold quantity
+                    product.Product_Fresh_Stock = Math.max(0, prevFreshStock - item.quantity);
+                    // Reduce on-hold qty by sold quantity (items are no longer on hold)
+                    product.Product_On_Hold_Qty = Math.max(0, prevOnHold - item.quantity);
+
+                    await product.save({ session });
+                    console.log(`✅ Sell record stock update for ${item.product_code}:`);
+                    console.log(`   Fresh Stock: ${prevFreshStock} → ${product.Product_Fresh_Stock} (-${item.quantity})`);
+                    console.log(`   On Hold Qty: ${prevOnHold} → ${product.Product_On_Hold_Qty} (-${item.quantity})`);
+                } else {
+                    console.warn(`⚠️ Product not found for stock update: ${item.product_id}`);
+                }
+            } catch (productError) {
+                console.error(`❌ Error updating product ${item.product_id} stock:`, productError);
+                throw productError; // Re-throw to rollback the entire transaction
+            }
+        }
+        console.log('✅ All product stocks updated successfully for sell record');
+        // ====== END STOCK MOVEMENT ======
 
         await session.commitTransaction();
         session.endSession();

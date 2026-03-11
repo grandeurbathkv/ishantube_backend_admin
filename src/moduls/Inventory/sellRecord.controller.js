@@ -65,6 +65,11 @@ export const createSellRecord = async (req, res) => {
                 throw new Error(`Insufficient on-hold stock for ${product.Product_Description}. Available on-hold: ${product.Product_On_Hold_Qty}, Required: ${item.quantity}`);
             }
 
+            // Also validate fresh stock availability
+            if (product.Product_Fresh_Stock < item.quantity) {
+                throw new Error(`Insufficient fresh stock for ${product.Product_Description}. Available fresh stock: ${product.Product_Fresh_Stock}, Required: ${item.quantity}`);
+            }
+
             const amount = item.quantity * item.rate;
             total_amount += amount;
 
@@ -77,17 +82,25 @@ export const createSellRecord = async (req, res) => {
                 amount: amount,
             });
 
-            // Update product stock (Product_On_Hold_Qty - sell quantity)
+            // ====== STEP 4 STOCK MOVEMENT ======
+            // Sell Record: reduce BOTH Product_Fresh_Stock AND Product_On_Hold_Qty
+            const newFreshStock = Math.max(0, (product.Product_Fresh_Stock || 0) - item.quantity);
+            const newOnHoldQty = Math.max(0, (product.Product_On_Hold_Qty || 0) - item.quantity);
             await Product.findByIdAndUpdate(
                 product._id,
                 {
+                    $set: {
+                        Product_Fresh_Stock: newFreshStock,
+                        Product_On_Hold_Qty: newOnHoldQty,
+                    },
                     $inc: {
-                        Product_On_Hold_Qty: -item.quantity,
                         Product_Total_Sold: item.quantity,
                     },
                 },
                 { session }
             );
+            console.log(`✅ Sell record stock update for ${product.Product_code}: Fresh Stock ${product.Product_Fresh_Stock} → ${newFreshStock} (-${item.quantity}), On Hold ${product.Product_On_Hold_Qty} → ${newOnHoldQty} (-${item.quantity})`);
+            // ====== END STOCK MOVEMENT ======
         }
 
         // Apply discount and tax
