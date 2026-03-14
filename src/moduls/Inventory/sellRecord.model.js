@@ -90,6 +90,11 @@ const sellRecordSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // Document Reference
+        document_number: {
+            type: String,
+            trim: true,
+        },
         // Transport Details
         mode_of_transport: {
             type: String,

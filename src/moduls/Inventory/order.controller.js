@@ -147,6 +147,7 @@ export const recordDispatch = async (req, res) => {
     }
 };
 import Order from './order.model.js';
+import Quotation from './quotation.model.js';
 import mongoose from 'mongoose';
 import { Product } from '../Inventory/product.model.js';
 import { sendOrderApprovalNotification, sendOrderRejectionNotification, sendNewOrderNotification } from '../../utils/notificationHelper.js';
@@ -154,6 +155,151 @@ import { sendOrderApprovalNotification, sendOrderRejectionNotification, sendNewO
 // Utility function to round to 2 decimal places
 const roundTo2Decimals = (num) => {
     return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
+// Create a new order from an existing quotation
+export const createOrderFromQuotation = async (req, res) => {
+    try {
+        const { id } = req.params; // quotation ID
+        const userId = req.user?._id || req.user?.id;
+        const userName = req.user?.User_Name || req.user?.name || 'Unknown User';
+        const userRole = req.user?.Role;
+
+        // Find the quotation
+        const quotation = await Quotation.findById(id);
+        if (!quotation) {
+            return res.status(404).json({ success: false, message: 'Quotation not found' });
+        }
+
+        // Prevent duplicate orders from same quotation
+        const existingOrder = await Order.findOne({ quotation_id: id });
+        if (existingOrder) {
+            return res.status(400).json({
+                success: false,
+                message: `An order has already been created from this quotation. Order No: ${existingOrder.order_no}`
+            });
+        }
+
+        // Determine approval status based on role
+        const approvalStatus = userRole === 'Marketing' ? 'pending_approval' : 'not_required';
+
+        // Map quotation groups → order groups (add inventory fields)
+        const groups = quotation.groups.map(group => ({
+            group_id: group.group_id,
+            group_name: group.group_name,
+            group_category: group.group_category || 'Other',
+            items: group.items.map(item => ({
+                product_id: item.product_id,
+                product_code: item.product_code,
+                product_name: item.product_name,
+                product_description: item.product_description,
+                product_brand: item.product_brand,
+                product_category: item.product_category,
+                product_subcategory: item.product_subcategory,
+                product_color: item.product_color,
+                product_series: item.product_series,
+                product_image: item.product_image,
+                mrp: roundTo2Decimals(item.mrp),
+                quantity: item.quantity,
+                discount: roundTo2Decimals(item.discount || 0),
+                discount_type: item.discount_type || 'fixed',
+                net_rate: roundTo2Decimals(item.net_rate),
+                total_amount: roundTo2Decimals(item.total_amount),
+                gst_percentage: item.gst_percentage || 0,
+                gst_paid: item.gst_paid || false,
+                dispatched_quantity: 0,
+                balance_quantity: item.quantity,
+            })),
+            subtotal: roundTo2Decimals(group.subtotal || 0),
+            total_discount: roundTo2Decimals(group.total_discount || 0),
+            total_amount: roundTo2Decimals(group.total_amount || 0),
+        }));
+
+        const netAmountPayable = roundTo2Decimals(quotation.net_amount_payable || 0);
+
+        const orderData = {
+            quotation_id: quotation._id,
+            quotation_no: quotation.quotation_no,
+
+            company_id: quotation.company_id,
+            company_name: quotation.company_name,
+            company_address: quotation.company_address,
+            company_gst: quotation.company_gst,
+
+            party_id: quotation.party_id,
+            party_name: quotation.party_name,
+            party_billing_name: quotation.party_billing_name,
+            party_address: quotation.party_address,
+            party_city: quotation.party_city,
+            party_state: quotation.party_state,
+            party_gst: quotation.party_gst,
+            party_contact_person: quotation.party_contact_person,
+            party_mobile: quotation.party_mobile,
+            party_email: quotation.party_email,
+
+            ...(quotation.site_id && {
+                site_id: quotation.site_id,
+                site_name: quotation.site_name,
+                site_address: quotation.site_address,
+                site_contact_person: quotation.site_contact_person,
+                site_mobile: quotation.site_mobile,
+            }),
+
+            groups,
+
+            grand_total: roundTo2Decimals(quotation.grand_total || 0),
+            freight_charges: roundTo2Decimals(quotation.freight_charges || 0),
+            net_amount_before_tax: roundTo2Decimals(quotation.net_amount_before_tax || 0),
+            gst_amount: roundTo2Decimals(quotation.gst_amount || 0),
+            gst_percentage: quotation.gst_percentage || 18,
+            net_amount_payable: netAmountPayable,
+            additional_discount: roundTo2Decimals(quotation.additional_discount || 0),
+            roundoff_amount: roundTo2Decimals(quotation.roundoff_amount || 0),
+
+            notes: quotation.notes || '',
+
+            status: 'pending',
+            payment_status: 'pending',
+            amount_paid: 0,
+            balance_amount: netAmountPayable,
+
+            created_by: userId,
+            created_by_name: userName,
+            approval_status: approvalStatus,
+        };
+
+        const order = new Order(orderData);
+        await order.save();
+
+        // Mark quotation as accepted
+        await Quotation.findByIdAndUpdate(id, { status: 'accepted' });
+
+        // Notify Admin/Super Admin if Marketing role created the order
+        if (userRole === 'Marketing') {
+            const io = req.app.get('io');
+            sendNewOrderNotification({ order, createdByName: userName, io }).catch(err =>
+                console.error('Failed to send order notification:', err)
+            );
+        }
+
+        console.log(`✅ Order ${order.order_no} created from quotation ${quotation.quotation_no}`);
+
+        res.status(201).json({
+            success: true,
+            message: userRole === 'Marketing'
+                ? 'Order created from quotation. Pending approval from Admin/Super Admin.'
+                : 'Order created successfully from quotation',
+            data: order
+        });
+
+    } catch (error) {
+        console.error('Error creating order from quotation:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create order from quotation',
+            error: error.message
+        });
+    }
 };
 
 // Create a new order

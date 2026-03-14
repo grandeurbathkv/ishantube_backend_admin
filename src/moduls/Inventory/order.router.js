@@ -25,6 +25,9 @@ router.post('/send-vendor-email', orderController.sendEmailToVendor);
 // Get pending orders by party
 router.get('/pending-by-party/:partyId', orderController.getPendingOrdersByParty);
 
+// Create order from quotation
+router.post('/from-quotation/:id', orderController.createOrderFromQuotation);
+
 // Create new order
 router.post('/', orderController.createOrder);
 

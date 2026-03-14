@@ -206,13 +206,17 @@ export const getAllDispatches = async (req, res) => {
             order_id,
             from_date,
             to_date,
-            search
+            search,
+            sell_record_created
         } = req.query;
 
         const filter = {};
 
         if (status) filter.status = status;
         if (order_id) filter.order_id = order_id;
+        if (sell_record_created !== undefined && sell_record_created !== '') {
+            filter.sell_record_created = sell_record_created === 'true';
+        }
 
         if (from_date || to_date) {
             filter.dispatch_date = {};
@@ -231,7 +235,7 @@ export const getAllDispatches = async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const dispatches = await Dispatch.find(filter)
-            .populate('order_id', 'order_no status')
+            .populate('order_id', 'order_no status net_amount_payable')
             .populate('created_by', 'User_Name User_Email')
             .sort({ dispatch_date: -1 })
             .skip(skip)
@@ -365,6 +369,7 @@ export const createSellRecordFromDispatch = async (req, res) => {
             vehicle_number,
             freight_remarks,
             transport_incharge_number,
+            document_number,
             notes
         } = req.body;
 
@@ -422,6 +427,7 @@ export const createSellRecordFromDispatch = async (req, res) => {
             vehicle_number,
             freight_remarks,
             transport_incharge_number,
+            document_number,
             notes,
             dispatch_id: dispatch._id,
             order_id: dispatch.order_id,
