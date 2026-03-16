@@ -819,10 +819,25 @@ const uploadProductsFromExcel = async (req, res, next) => {
       });
     }
 
-    console.log('STEP 4: Reading Excel file from path:', req.file.path);
+    console.log('STEP 4: Reading Excel file...');
 
     // Read Excel file
-    const workbook = XLSX.readFile(req.file.path);
+    // NOTE: uploadExcelFile uses multer.memoryStorage(), so `req.file.path` is typically undefined.
+    // Prefer reading from buffer; fall back to path if present.
+    let workbook;
+    if (req.file.buffer) {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      console.log('STEP 4A: Excel read from memory buffer');
+    } else if (req.file.path) {
+      workbook = XLSX.readFile(req.file.path);
+      console.log('STEP 4A: Excel read from file path:', req.file.path);
+    } else {
+      console.log('ERROR: Uploaded file has no buffer or path');
+      return res.status(400).json({
+        success: false,
+        message: 'Uploaded Excel file could not be read (missing buffer/path)'
+      });
+    }
     const sheetName = workbook.SheetNames[0]; // Get first sheet
     const worksheet = workbook.Sheets[sheetName];
 
@@ -1068,12 +1083,14 @@ const uploadProductsFromExcel = async (req, res, next) => {
       }
     }
 
-    // Clean up uploaded file
-    try {
-      fs.unlinkSync(req.file.path);
-      console.log('STEP 10: Uploaded file deleted successfully');
-    } catch (cleanupError) {
-      console.warn('WARNING: Could not delete uploaded file:', cleanupError.message);
+    // Clean up uploaded file (only if stored on disk)
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+        console.log('STEP 10: Uploaded file deleted successfully');
+      } catch (cleanupError) {
+        console.warn('WARNING: Could not delete uploaded file:', cleanupError.message);
+      }
     }
 
     console.log('========================================');

@@ -868,8 +868,18 @@ export const uploadArchitectsFromExcel = async (req, res, next) => {
 
     console.log('Reading Excel file...');
 
-    // Read Excel file
-    const workbook = XLSX.readFile(req.file.path);
+    // Read Excel file (uploadExcelFile uses multer.memoryStorage())
+    let workbook;
+    if (req.file.buffer) {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    } else if (req.file.path) {
+      workbook = XLSX.readFile(req.file.path);
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Uploaded Excel file could not be read (missing buffer/path)'
+      });
+    }
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
 
