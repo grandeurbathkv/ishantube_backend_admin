@@ -347,7 +347,7 @@ export const updateQuotationStatus = async (req, res) => {
             });
         }
 
-        if (!status || !['draft', 'sent', 'accepted', 'rejected', 'expired'].includes(status)) {
+        if (!status || !['draft', 'sent', 'accepted', 'rejected', 'expired', 'closed'].includes(status)) {
             return res.status(400).json({
                 success: false,
                 message: 'Invalid status value'
@@ -773,9 +773,8 @@ export const getFilteredQuotations = async (req, res) => {
 
         console.log('Final filter:', filter);
 
-        // Only fetch non-expired and accepted/sent quotations
-        filter.status = { $in: ['sent', 'accepted', 'draft'] }; // Added draft for testing
-        filter.valid_until = { $gte: new Date() };
+        // Fetch all relevant quotations including closed ones (closed shown as disabled)
+        filter.status = { $in: ['sent', 'accepted', 'draft', 'closed'] };
 
         // Execute query with population
         const quotations = await Quotation.find(filter)

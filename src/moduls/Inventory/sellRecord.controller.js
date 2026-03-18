@@ -211,6 +211,8 @@ export const getSellRecords = async (req, res) => {
         const sellRecords = await SellRecord.find(filter)
             .populate("created_by", "name email")
             .populate("items.product_id", "product_name product_code")
+            .populate("dispatch_id", "dispatch_no dispatch_date")
+            .populate("order_id", "order_no order_date")
             .sort({ bill_date: -1, createdAt: -1 })
             .skip(skip)
             .limit(parseInt(limit));

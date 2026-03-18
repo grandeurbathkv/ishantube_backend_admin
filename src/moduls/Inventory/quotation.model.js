@@ -104,7 +104,7 @@ const quotationSchema = new mongoose.Schema({
     },
     valid_until: {
         type: Date,
-        default: function() {
+        default: function () {
             const date = new Date();
             date.setDate(date.getDate() + 30);
             return date;
@@ -112,10 +112,10 @@ const quotationSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['draft', 'sent', 'accepted', 'rejected', 'expired'],
+        enum: ['draft', 'sent', 'accepted', 'rejected', 'expired', 'closed'],
         default: 'draft'
     },
-    
+
     // Company Information
     company_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -126,7 +126,7 @@ const quotationSchema = new mongoose.Schema({
     company_address: String,
     company_gst: String,
     company_contact: String,
-    
+
     // Party Information
     party_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -145,7 +145,7 @@ const quotationSchema = new mongoose.Schema({
     party_contact_person: String,
     party_mobile: String,
     party_email: String,
-    
+
     // Site Information (Optional)
     site_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -155,10 +155,10 @@ const quotationSchema = new mongoose.Schema({
     site_address: String,
     site_contact_person: String,
     site_mobile: String,
-    
+
     // Groups and Items
     groups: [quotationGroupSchema],
-    
+
     // Financial Details
     grand_total: {
         type: Number,
@@ -186,7 +186,7 @@ const quotationSchema = new mongoose.Schema({
         required: true,
         default: 0
     },
-    
+
     // Additional Charges/Discounts
     additional_discount: {
         type: Number,
@@ -200,7 +200,7 @@ const quotationSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    
+
     // Terms and Conditions
     payment_terms: {
         type: String,
@@ -211,10 +211,10 @@ const quotationSchema = new mongoose.Schema({
         default: '7-10 working days from order confirmation'
     },
     notes: String,
-    
+
     // Order Reference
     order_id: String,
-    
+
     // User tracking
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
@@ -226,14 +226,14 @@ const quotationSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     },
-    
+
     // Quotation sent details
     sent_at: Date,
     sent_via: {
         type: String,
         enum: ['email', 'whatsapp', 'print', 'manual'],
     },
-    
+
     // Response tracking
     responded_at: Date,
     response_notes: String
@@ -242,7 +242,7 @@ const quotationSchema = new mongoose.Schema({
 });
 
 // Generate unique quotation number
-quotationSchema.pre('save', async function(next) {
+quotationSchema.pre('save', async function (next) {
     if (!this.quotation_no) {
         const prefix = 'QS';
         const timestamp = Date.now().toString().slice(-6);
@@ -253,13 +253,13 @@ quotationSchema.pre('save', async function(next) {
 });
 
 // Virtual for total items count
-quotationSchema.virtual('total_items').get(function() {
+quotationSchema.virtual('total_items').get(function () {
     if (!this.groups || !Array.isArray(this.groups)) return 0;
     return this.groups.reduce((total, group) => total + (group.items?.length || 0), 0);
 });
 
 // Virtual for total quantity
-quotationSchema.virtual('total_quantity').get(function() {
+quotationSchema.virtual('total_quantity').get(function () {
     if (!this.groups || !Array.isArray(this.groups)) return 0;
     return this.groups.reduce((total, group) => {
         return total + (group.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0);

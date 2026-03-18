@@ -436,10 +436,21 @@ export const createSellRecordFromDispatch = async (req, res) => {
 
         await sellRecord.save({ session });
 
-        // Update dispatch to mark sell record created
+        // Update dispatch to mark sell record created and set status to delivered (Dispatched)
         dispatch.sell_record_id = sellRecord._id;
         dispatch.sell_record_created = true;
+        dispatch.status = 'delivered';
         await dispatch.save({ session });
+
+        // Update order status to 'dispatched' when sell record is created
+        if (dispatch.order_id) {
+            await Order.findByIdAndUpdate(
+                dispatch.order_id,
+                { status: 'dispatched' },
+                { session }
+            );
+            console.log(`✅ Order status updated to 'dispatched' for order: ${dispatch.order_id}`);
+        }
 
         // ====== STEP 4 STOCK MOVEMENT ======
         // When sell record is created: reduce BOTH Product_Fresh_Stock AND Product_On_Hold_Qty

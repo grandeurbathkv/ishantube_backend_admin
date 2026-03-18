@@ -271,8 +271,8 @@ export const createOrderFromQuotation = async (req, res) => {
         const order = new Order(orderData);
         await order.save();
 
-        // Mark quotation as accepted
-        await Quotation.findByIdAndUpdate(id, { status: 'accepted' });
+        // Mark quotation as closed (order created from it)
+        await Quotation.findByIdAndUpdate(id, { status: 'closed' });
 
         // Notify Admin/Super Admin if Marketing role created the order
         if (userRole === 'Marketing') {
