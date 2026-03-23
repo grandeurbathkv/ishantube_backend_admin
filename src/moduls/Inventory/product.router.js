@@ -6,7 +6,8 @@ import {
   getProductDropdown,
   getProductFilters,
   uploadProductsFromExcel,
-  generateProductsPDF
+  generateProductsPDF,
+  searchProductImages
 } from './product.controller.js';
 import { protect } from '../../middleware/user.middleware.js';
 import { uploadProductImage, uploadExcelFile, handleUploadError } from '../../middleware/s3.upload.middleware.js';
@@ -377,6 +378,9 @@ router.get('/analytics', protect, getProductAnalytics);
 
 // Filters route
 router.get('/filters', protect, getProductFilters);
+
+// Image search route (Pixabay)
+router.get('/search-images', protect, searchProductImages);
 
 // Main CRUD routes with file upload support (/:id must come AFTER specific routes)
 router.route('/').post(protect, uploadProductImage, handleUploadError, manageProducts).get(protect, manageProducts);

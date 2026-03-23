@@ -1416,6 +1416,92 @@ const generateProductsPDF = async (req, res, next) => {
   }
 };
 
+// ========== Product Image Search (DuckDuckGo – no API key required) ==========
+const searchProductImages = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || !query.trim()) {
+      return res.status(400).json({ success: false, message: 'Search query is required' });
+    }
+
+    const q = query.trim();
+    console.log(`🔍 Searching DuckDuckGo images for: "${q}"`);
+
+    const { default: axios } = await import('axios');
+
+    const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+    // Step 1: visit homepage to get session cookies (required to avoid 403)
+    const homeRes = await axios.get('https://duckduckgo.com/', {
+      headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'en-US,en;q=0.9' },
+      timeout: 12000,
+    });
+    const cookies = (homeRes.headers['set-cookie'] || [])
+      .map(c => c.split(';')[0])
+      .join('; ');
+
+    // Step 2: fetch search page with cookies to extract vqd token
+    const searchRes = await axios.get('https://duckduckgo.com/', {
+      params: { q, iax: 'images', ia: 'images' },
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'text/html',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://duckduckgo.com/',
+        'Cookie': cookies,
+      },
+      timeout: 12000,
+    });
+
+    const vqd = searchRes.data.match(/vqd=['"]([^'"]+)['"]/)?.[1];
+    if (!vqd) {
+      console.warn('⚠️  Could not extract vqd token');
+      return res.status(200).json({ success: true, data: [], message: 'No images found for this search.' });
+    }
+    console.log(`✅ DuckDuckGo vqd token: ${vqd}`);
+
+    // Step 3: fetch image results with cookies + correct referer (prevents 403)
+    const imgRes = await axios.get('https://duckduckgo.com/i.js', {
+      params: { l: 'us-en', o: 'json', q, vqd, f: ',,,', p: '1' },
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': `https://duckduckgo.com/?q=${encodeURIComponent(q)}&iax=images&ia=images`,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': cookies,
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+      },
+      timeout: 12000,
+    });
+
+    const hits = (imgRes.data.results || []).slice(0, 18);
+    const images = hits.map((hit, i) => ({
+      id: i,
+      previewURL: hit.thumbnail || hit.image,
+      webformatURL: hit.image,
+      largeImageURL: hit.image,
+      tags: hit.title || q,
+      pageURL: hit.url,
+      user: hit.source,
+    }));
+
+    console.log(`✅ Found ${images.length} images for "${q}"`);
+    return res.status(200).json({ success: true, message: `Found ${images.length} images`, total: images.length, data: images });
+
+  } catch (error) {
+    console.error('Image search error:', error.message);
+    return res.status(200).json({
+      success: true,
+      data: [],
+      message: 'Image search temporarily unavailable. Try a different search term or upload an image manually.',
+    });
+  }
+};
+
 export {
   manageProducts,
   manageDropdownData,
@@ -1423,5 +1509,6 @@ export {
   getProductDropdown,
   getProductFilters,
   uploadProductsFromExcel,
-  generateProductsPDF
+  generateProductsPDF,
+  searchProductImages
 };
