@@ -40,10 +40,13 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   "http://localhost:5174",
+  "https://backendgrandeurbath.in",
+  "https://www.backendgrandeurbath.in",
+  "https://admin.backendgrandeurbath.in",
+  "https://api.backendgrandeurbath.in",
   "https://grandeurbath.in",
   "https://www.grandeurbath.in",
-  "https://admin.grandeurbath.in",
-  "https://api.backendgrandeurbath.in"
+  "https://admin.grandeurbath.in"
 ];
 
 // Initialize Socket.IO with CORS
