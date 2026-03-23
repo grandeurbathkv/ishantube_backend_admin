@@ -35,31 +35,11 @@ connectDB();
 const app = express();
 const httpServer = createServer(app);
 
-// Allowed origins for CORS
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "http://localhost:5174",
-  "https://backendgrandeurbath.in",
-  "https://www.backendgrandeurbath.in",
-  "https://admin.backendgrandeurbath.in",
-  "https://api.backendgrandeurbath.in",
-  "https://grandeurbath.in",
-  "https://www.grandeurbath.in",
-  "https://admin.grandeurbath.in"
-];
-
 // Initialize Socket.IO with CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    origin: "*",
+    methods: ["GET", "POST"],
     credentials: true
   }
 });
@@ -71,22 +51,9 @@ initializeSocketIO(io);
 app.set('io', io);
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, server-to-server)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS policy: Origin ${origin} not allowed`));
-    }
-  },
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true,
-  optionsSuccessStatus: 200
+  origin: "*",
+  credentials: true
 }));
-
-// Handle preflight OPTIONS requests explicitly
-app.options('*', cors());
 
 // Swagger setup
 const swaggerOptions = {
