@@ -577,6 +577,25 @@ export const getOrderById = async (req, res) => {
         // Calculate inventory availability for each item
         const orderWithInventory = order.toObject();
 
+        // ── Backfill contact fields from populated party/site objects ──
+        // party_contact_person: use populated party_id.Contact_Person if stored field is empty
+        if (!orderWithInventory.party_contact_person && orderWithInventory.party_id?.Contact_Person) {
+            orderWithInventory.party_contact_person = orderWithInventory.party_id.Contact_Person;
+        }
+        // party_mobile: use populated party_id.Mobile_Number if stored field is empty
+        if (!orderWithInventory.party_mobile && orderWithInventory.party_id?.Mobile_Number) {
+            orderWithInventory.party_mobile = orderWithInventory.party_id.Mobile_Number;
+        }
+        // site_contact_person: use populated site_id.Contact_Person if stored field is empty
+        if (!orderWithInventory.site_contact_person && orderWithInventory.site_id?.Contact_Person) {
+            orderWithInventory.site_contact_person = orderWithInventory.site_id.Contact_Person;
+        }
+        // site_mobile: use populated site_id.Mobile_Number if stored field is empty
+        if (!orderWithInventory.site_mobile && orderWithInventory.site_id?.Mobile_Number) {
+            orderWithInventory.site_mobile = orderWithInventory.site_id.Mobile_Number;
+        }
+        // ── End backfill ──
+
         // First, calculate consolidated quantities for each product code
         const consolidatedQuantities = {};
         for (const group of orderWithInventory.groups) {
