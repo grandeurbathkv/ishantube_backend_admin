@@ -151,6 +151,8 @@ import Quotation from './quotation.model.js';
 import mongoose from 'mongoose';
 import { Product } from '../Inventory/product.model.js';
 import { sendOrderApprovalNotification, sendOrderRejectionNotification, sendNewOrderNotification } from '../../utils/notificationHelper.js';
+import { Architect } from '../customer/architect.model.js';
+import { ChannelPartner } from '../customer/channelPartner.model.js';
 
 // Utility function to round to 2 decimal places
 const roundTo2Decimals = (num) => {
@@ -688,6 +690,35 @@ export const getOrderById = async (req, res) => {
                 }
             }
         }
+
+        // ── Resolve Architect & Channel Partner names from party defaults ──
+        if (orderWithInventory.party_id) {
+            const archId = orderWithInventory.party_id.Party_default_Arch_id;
+            const cpId = orderWithInventory.party_id.Party_default_cp_id;
+
+            if (archId && archId !== 'NA') {
+                try {
+                    const architect = await Architect.findOne({ Arch_id: archId }).select('Arch_Name');
+                    if (architect) {
+                        orderWithInventory.party_id.architect_name = architect.Arch_Name;
+                    }
+                } catch (e) {
+                    console.error('Error fetching architect name:', e);
+                }
+            }
+
+            if (cpId && cpId !== 'NA') {
+                try {
+                    const cp = await ChannelPartner.findOne({ CP_id: cpId }).select('CP_Name');
+                    if (cp) {
+                        orderWithInventory.party_id.channel_partner_name = cp.CP_Name;
+                    }
+                } catch (e) {
+                    console.error('Error fetching channel partner name:', e);
+                }
+            }
+        }
+        // ── End Architect & CP name resolution ──
 
         res.status(200).json({
             success: true,

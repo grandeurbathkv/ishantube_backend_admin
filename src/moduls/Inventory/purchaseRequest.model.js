@@ -180,7 +180,7 @@ const purchaseRequestSchema = new mongoose.Schema({
 });
 
 // Add indexes for better performance
-purchaseRequestSchema.index({ PR_Number: 1 }, { unique: true });
+// PR_Number index handled by unique:true in field definition
 purchaseRequestSchema.index({ created_by: 1 });
 purchaseRequestSchema.index({ status: 1 });
 purchaseRequestSchema.index({ PR_Date: -1 });

@@ -98,7 +98,7 @@ const paymentReceiptSchema = new mongoose.Schema({
 });
 
 // Generate receipt number
-paymentReceiptSchema.pre('save', async function(next) {
+paymentReceiptSchema.pre('save', async function (next) {
     if (this.isNew && !this.receipt_no) {
         const count = await mongoose.model('PaymentReceipt').countDocuments();
         const receiptNumber = `RCP${String(count + 1).padStart(6, '0')}`;
@@ -108,7 +108,7 @@ paymentReceiptSchema.pre('save', async function(next) {
 });
 
 // Index for faster queries
-paymentReceiptSchema.index({ receipt_no: 1 });
+// receipt_no index handled by unique:true in field definition
 paymentReceiptSchema.index({ order_id: 1 });
 paymentReceiptSchema.index({ receipt_date: -1 });
 paymentReceiptSchema.index({ company_id: 1 });

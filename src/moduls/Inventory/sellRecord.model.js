@@ -133,7 +133,7 @@ const sellRecordSchema = new mongoose.Schema(
 );
 
 // Index for faster queries
-sellRecordSchema.index({ bill_number: 1 });
+// bill_number index handled by unique:true in field definition
 sellRecordSchema.index({ bill_date: -1 });
 sellRecordSchema.index({ created_by: 1 });
 sellRecordSchema.index({ status: 1 });
