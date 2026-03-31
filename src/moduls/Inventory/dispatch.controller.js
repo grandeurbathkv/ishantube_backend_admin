@@ -3,6 +3,8 @@ import Order from './order.model.js';
 import SellRecord from './sellRecord.model.js';
 import { Product } from './product.model.js';
 import mongoose from 'mongoose';
+import { Site } from '../customer/site.model.js';
+import { Party } from '../customer/party.model.js';
 
 // Utility function to round to 2 decimal places
 const roundTo2Decimals = (num) => {
@@ -269,6 +271,7 @@ export const getDispatchById = async (req, res) => {
     try {
         const dispatch = await Dispatch.findById(req.params.id)
             .populate('order_id')
+            .populate('site_id')          // populate Site document for fallback
             .populate('created_by', 'User_Name User_Email');
 
         if (!dispatch) {
@@ -281,9 +284,76 @@ export const getDispatchById = async (req, res) => {
         console.log('📤 Sending dispatch to frontend:');
         console.log('Dispatch Items being sent:', JSON.stringify(dispatch.items, null, 2));
 
+        // Convert to plain object so we can enrich with fallback fields
+        const dispatchObj = dispatch.toObject();
+        const orderData = dispatchObj.order_id || {};
+        const siteDoc = dispatchObj.site_id || {};   // populated Site document
+
+        // site_name: dispatch → order → Site collection (Site_Billing_Name)
+        dispatchObj.site_name =
+            dispatchObj.site_name ||
+            orderData.site_name ||
+            siteDoc.Site_Billing_Name || '';
+
+        // site_address: dispatch → order → Site collection (Site_Address)
+        dispatchObj.site_address =
+            dispatchObj.site_address ||
+            orderData.site_address ||
+            siteDoc.Site_Address || '';
+
+        // site_contact_person: order → Site collection (Contact_Person)
+        dispatchObj.site_contact_person =
+            orderData.site_contact_person ||
+            siteDoc.Contact_Person || '';
+
+        // site_mobile: order → Site collection (Mobile_Number)
+        dispatchObj.site_mobile =
+            orderData.site_mobile ||
+            siteDoc.Mobile_Number || '';
+
+        // ── LAST RESORT: if site_name is still empty, find the first site
+        //    linked to the order's party from the Site collection
+        if (!dispatchObj.site_name && orderData.party_id) {
+            // Site uses Site_party_id (String like 'PTY001'), not ObjectId
+            // So we first fetch the Party to get its Party_id string
+            const party = await Party.findById(orderData.party_id).lean();
+            if (party && party.Party_id) {
+                const partySite = await Site.findOne({ Site_party_id: party.Party_id }).lean();
+                if (partySite) {
+                    dispatchObj.site_name = partySite.Site_Billing_Name || '';
+                    dispatchObj.site_address = dispatchObj.site_address || partySite.Site_Address || '';
+                    dispatchObj.site_contact_person = dispatchObj.site_contact_person || partySite.Contact_Person || '';
+                    dispatchObj.site_mobile = dispatchObj.site_mobile || partySite.Mobile_Number || '';
+                    console.log('ℹ️  Site data loaded from party fallback:', partySite.Site_Billing_Name);
+                } else {
+                    console.log('⚠️  No site found for party:', party.Party_id);
+                }
+            }
+        }
+
+        // ── FINAL JUGAD: if site data is STILL empty after all lookups,
+        //    use the party's own billing info from the order as site info.
+        //    This handles orders created without a site selection.
+        if (!dispatchObj.site_name) {
+            dispatchObj.site_name = orderData.party_billing_name || orderData.party_name || '';
+            dispatchObj.site_address = dispatchObj.site_address || orderData.party_address || '';
+            dispatchObj.site_contact_person = dispatchObj.site_contact_person || orderData.party_contact_person || '';
+            dispatchObj.site_mobile = dispatchObj.site_mobile || orderData.party_mobile || '';
+            if (dispatchObj.site_name) {
+                console.log('ℹ️  Site data filled from party billing info (jugad):', dispatchObj.site_name);
+            }
+        }
+
+        console.log('Site fields sent:', {
+            site_name: dispatchObj.site_name,
+            site_address: dispatchObj.site_address,
+            site_contact_person: dispatchObj.site_contact_person,
+            site_mobile: dispatchObj.site_mobile,
+        });
+
         res.status(200).json({
             success: true,
-            data: dispatch
+            data: dispatchObj
         });
 
     } catch (error) {
