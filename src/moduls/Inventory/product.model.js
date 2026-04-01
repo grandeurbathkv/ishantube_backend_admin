@@ -132,7 +132,7 @@ const productSchema = new mongoose.Schema({
   Product_Type: {
     type: String,
     required: [true, 'Product type is required'],
-    enum: ['Rough', 'Trim'],
+    enum: ['Rough', 'Trim', 'Combo', 'Upper'],
     trim: true
   },
   Product_Color: {
@@ -154,7 +154,7 @@ const productSchema = new mongoose.Schema({
   Product_Flag: {
     type: String,
     required: [true, 'Product flag is required'],
-    enum: ['S2s', 'o2s', 'O2s'],
+    enum: ['S2s', 'O2s', 'TSL', 'NP', 'OBSELETE', 'NA'],
     trim: true
   },
   Product_Category: {
