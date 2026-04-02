@@ -868,60 +868,103 @@ const uploadProductsFromExcel = async (req, res, next) => {
 
     const userId = req.user._id;
 
-    // Expected columns (flexible mapping)
+    // Expected columns (flexible mapping — case-insensitive matching applied separately)
     const columnMapping = {
-      'Product_code': ['Product_code', 'Product Code', 'Code', 'SKU'],
-      'Product_Description': ['Product_Description', 'Product Description', 'Description', 'Name'],
-      'Product_Brand': ['Product_Brand', 'Product Brand', 'Brand'],
-      'Product_Type': ['Product_Type', 'Product Type', 'Type'],
-      'Product_Color': ['Product_Color', 'Product Color', 'Color'],
-      'Product_mrp': ['Product_mrp', 'Product MRP', 'MRP', 'Price'],
-      'Product_Flag': ['Product_Flag', 'Product Flag', 'Flag'],
-      'Product_Category': ['Product_Category', 'Product Category', 'Category'],
-      'Product_Sub_Category': ['Product_Sub_Category', 'Product Sub Category', 'Sub Category', 'Subcategory'],
-      'Product_Series': ['Product_Series', 'Product Series', 'Series'],
-      'Product_Discount_sale_low': ['Product_Discount_sale_low', 'Discount Low', 'Low Discount'],
-      'Product_discount_sale_high': ['Product_discount_sale_high', 'Discount High', 'High Discount'],
-      'Prod_Purc_scheme': ['Prod_Purc_scheme', 'Purchase Scheme', 'Scheme'],
-      'Prod_scheme_discount': ['Prod_scheme_discount', 'Scheme Discount'],
-      'Product_purc_base_disc': ['Product_purc_base_disc', 'Base Discount'],
-      'Product_opening_stock': ['Product_opening_stock', 'Opening Stock', 'Stock'],
-      'Product_Fresh_Stock': ['Product_Fresh_Stock', 'Fresh Stock'],
-      'Product_Damage_stock': ['Product_Damage_stock', 'Damage Stock'],
-      'Product_sample_stock': ['Product_sample_stock', 'Sample Stock'],
-      'Prod_Showroom_stock': ['Prod_Showroom_stock', 'Showroom Stock'],
-      'Product_gst': ['Product_gst', 'GST', 'Tax'],
-      'Product_fragile': ['Product_fragile', 'Fragile', 'Breakable'],
-      'Product_Notes': ['Product_Notes', 'Notes', 'Remarks'],
-      'Product_mustorder': ['Product_mustorder', 'Must Order', 'Reference']
+      'Product_code': ['Product_code', 'Product Code', 'Code', 'SKU', 'Item Code', 'Item_Code', 'ProductCode', 'Prod Code', 'Prod_Code', 'Product ID', 'Product_ID'],
+      'Product_Description': ['Product_Description', 'Product Description', 'Description', 'Name', 'Item Name', 'Item_Name', 'Product Name', 'Product_Name', 'Title', 'Item Description'],
+      'Product_Brand': ['Product_Brand', 'Product Brand', 'Brand', 'Brand Name', 'Make'],
+      'Product_Type': ['Product_Type', 'Product Type', 'Type', 'Item Type', 'Tile Type'],
+      'Product_Color': ['Product_Color', 'Product Color', 'Color', 'Colour', 'Shade', 'Color Name'],
+      'Product_mrp': ['Product_mrp', 'Product MRP', 'MRP', 'Price', 'Rate', 'Unit Price', 'Selling Price', 'List Price', 'Basic Price', 'Basic Rate'],
+      'Product_Flag': ['Product_Flag', 'Product Flag', 'Flag', 'Status', 'Product Status'],
+      'Product_Category': ['Product_Category', 'Product Category', 'Category', 'Cat', 'Item Category', 'Main Category'],
+      'Product_Sub_Category': ['Product_Sub_Category', 'Product Sub Category', 'Sub Category', 'Subcategory', 'Sub_Category', 'SubCategory', 'Sub Cat', 'Item Sub Category'],
+      'Product_Series': ['Product_Series', 'Product Series', 'Series', 'Collection', 'Range'],
+      'Product_Discount_sale_low': ['Product_Discount_sale_low', 'Discount Low', 'Low Discount', 'Sale Discount Low', 'Disc Low', 'Discount%', 'Discount', 'Sale Disc Low'],
+      'Product_discount_sale_high': ['Product_discount_sale_high', 'Discount High', 'High Discount', 'Sale Discount High', 'Disc High', 'Sale Disc High'],
+      'Prod_Purc_scheme': ['Prod_Purc_scheme', 'Purchase Scheme', 'Scheme', 'Purc Scheme', 'Purchase Scheme Flag'],
+      'Prod_scheme_discount': ['Prod_scheme_discount', 'Scheme Discount', 'Scheme Disc'],
+      'Product_purc_base_disc': ['Product_purc_base_disc', 'Base Discount', 'Purchase Base Discount', 'Purc Base Disc', 'Base Disc'],
+      'Product_opening_stock': ['Product_opening_stock', 'Opening Stock', 'Stock', 'Qty', 'Quantity', 'Opening Qty', 'Op Stock', 'Closing Stock', 'Balance'],
+      'Product_Fresh_Stock': ['Product_Fresh_Stock', 'Fresh Stock', 'Fresh Qty', 'Good Stock'],
+      'Product_Damage_stock': ['Product_Damage_stock', 'Damage Stock', 'Damaged Stock', 'Damage Qty', 'Defective'],
+      'Product_sample_stock': ['Product_sample_stock', 'Sample Stock', 'Sample Qty'],
+      'Prod_Showroom_stock': ['Prod_Showroom_stock', 'Showroom Stock', 'Display Stock', 'Showroom Qty'],
+      'Product_gst': ['Product_gst', 'GST', 'Tax', 'GST%', 'GST Rate', 'Tax Rate', 'Tax %'],
+      'Product_fragile': ['Product_fragile', 'Fragile', 'Breakable', 'Is Fragile'],
+      'Product_Notes': ['Product_Notes', 'Notes', 'Remarks', 'Comment', 'Comments', 'Note'],
+      'Product_mustorder': ['Product_mustorder', 'Must Order', 'Reference', 'Must Order Ref', 'Order Ref']
     };
 
-    // Helper function to find column value
-    const findColumnValue = (row, fieldName) => {
+    // Helper function to find column value (case-insensitive + whitespace-tolerant)
+    const normalizeKey = (key) => key.toString().toLowerCase().replace(/[_\s]+/g, '').trim();
+
+    // Build a normalized key → original value lookup for each row
+    const buildNormalizedRow = (row) => {
+      const map = {};
+      for (const key of Object.keys(row)) {
+        map[normalizeKey(key)] = row[key];
+      }
+      return map;
+    };
+
+    // Return a cell value trimmed; treat whitespace-only strings as null
+    const sanitize = (v) => {
+      if (v === undefined || v === null) return null;
+      const s = String(v).trim();
+      return s === '' ? null : s;
+    };
+
+    const findColumnValue = (row, fieldName, normalizedRow) => {
       const possibleColumns = columnMapping[fieldName] || [fieldName];
+      // 1. Exact match first
       for (const col of possibleColumns) {
-        if (row[col] !== undefined && row[col] !== null && row[col] !== '') {
-          return row[col];
-        }
+        const val = sanitize(row[col]);
+        if (val !== null) return val;
+      }
+      // 2. Case/whitespace-insensitive match
+      for (const col of possibleColumns) {
+        const nk = normalizeKey(col);
+        const val = sanitize(normalizedRow[nk]);
+        if (val !== null) return val;
       }
       return null;
     };
 
+    // Log first row keys to aid debugging
+    if (jsonData.length > 0) {
+      console.log('STEP 7A: First row column keys:', Object.keys(jsonData[0]));
+      console.log('STEP 7B: First row sample data:', jsonData[0]);
+    }
+
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
       const rowNumber = i + 2; // Excel row number (considering header)
+      const normalizedRow = buildNormalizedRow(row);
 
       try {
         // Extract data from row
-        const productCode = findColumnValue(row, 'Product_code');
-        const productDescription = findColumnValue(row, 'Product_Description');
-        const productBrand = findColumnValue(row, 'Product_Brand');
-        const productType = findColumnValue(row, 'Product_Type');
-        const productColor = findColumnValue(row, 'Product_Color');
-        const productMrp = findColumnValue(row, 'Product_mrp');
-        const productFlag = findColumnValue(row, 'Product_Flag');
-        const productCategory = findColumnValue(row, 'Product_Category');
-        const productSubCategory = findColumnValue(row, 'Product_Sub_Category');
+        const productCode = findColumnValue(row, 'Product_code', normalizedRow);
+        const productDescription = findColumnValue(row, 'Product_Description', normalizedRow);
+        const productBrand = findColumnValue(row, 'Product_Brand', normalizedRow);
+        const productTypeRaw = findColumnValue(row, 'Product_Type', normalizedRow);
+        const productColor = findColumnValue(row, 'Product_Color', normalizedRow);
+        const productMrp = findColumnValue(row, 'Product_mrp', normalizedRow);
+        const productFlagRaw = findColumnValue(row, 'Product_Flag', normalizedRow);
+        const productCategory = findColumnValue(row, 'Product_Category', normalizedRow);
+        const productSubCategory = findColumnValue(row, 'Product_Sub_Category', normalizedRow);
+
+        // Normalise Product_Type (case-insensitive, trim)
+        const validTypes = ['Rough', 'Trim', 'Combo', 'Upper'];
+        const productType = productTypeRaw
+          ? validTypes.find(t => t.toLowerCase() === productTypeRaw.toString().trim().toLowerCase()) || productTypeRaw.toString().trim()
+          : null;
+
+        // Normalise Product_Flag (case-insensitive, trim)
+        const validFlags = ['S2s', 'O2s', 'TSL', 'NP', 'OBSELETE', 'NA'];
+        const productFlag = productFlagRaw
+          ? validFlags.find(f => f.toLowerCase() === productFlagRaw.toString().trim().toLowerCase()) || productFlagRaw.toString().trim()
+          : 'S2s'; // Default to S2s if not provided
 
         // Validate required fields
         if (!productCode) {
@@ -951,11 +994,11 @@ const uploadProductsFromExcel = async (req, res, next) => {
           continue;
         }
 
-        if (!productType || !['Rough', 'Trim'].includes(productType)) {
+        if (!productType || !['Rough', 'Trim', 'Combo', 'Upper'].includes(productType)) {
           results.failed.push({
             row: rowNumber,
             data: row,
-            error: 'Product Type is required and must be "Rough" or "Trim"'
+            error: `Product Type is required and must be one of: Rough, Trim, Combo, Upper (got: "${productTypeRaw}")`
           });
           continue;
         }
@@ -978,11 +1021,11 @@ const uploadProductsFromExcel = async (req, res, next) => {
           continue;
         }
 
-        if (!productFlag || !['S2s', 'o2s'].includes(productFlag)) {
+        if (!productFlag || !['S2s', 'O2s', 'TSL', 'NP', 'OBSELETE', 'NA'].includes(productFlag)) {
           results.failed.push({
             row: rowNumber,
             data: row,
-            error: 'Product Flag is required and must be "S2s" or "o2s"'
+            error: `Product Flag must be one of: S2s, O2s, TSL, NP, OBSELETE, NA (got: "${productFlagRaw}")`
           });
           continue;
         }
@@ -1031,10 +1074,13 @@ const uploadProductsFromExcel = async (req, res, next) => {
           await ProductSubCategory.getOrCreate(productSubCategory, productCategory, userId);
         }
 
-        const productSeries = findColumnValue(row, 'Product_Series');
+        const productSeries = findColumnValue(row, 'Product_Series', normalizedRow);
         if (productSeries) {
           await ProductSeries.getOrCreate(productSeries, userId);
         }
+
+        const purcSchemeRaw = findColumnValue(row, 'Prod_Purc_scheme', normalizedRow);
+        const fragileRaw = findColumnValue(row, 'Product_fragile', normalizedRow);
 
         // Create product data object
         const productData = {
@@ -1048,20 +1094,20 @@ const uploadProductsFromExcel = async (req, res, next) => {
           Product_Category: productCategory,
           Product_Sub_Category: productSubCategory,
           Product_Series: productSeries || '',
-          Product_Discount_sale_low: parseFloat(findColumnValue(row, 'Product_Discount_sale_low')) || 0,
-          Product_discount_sale_high: parseFloat(findColumnValue(row, 'Product_discount_sale_high')) || 0,
-          Prod_Purc_scheme: findColumnValue(row, 'Prod_Purc_scheme') === 'true' || findColumnValue(row, 'Prod_Purc_scheme') === true || false,
-          Prod_scheme_discount: parseFloat(findColumnValue(row, 'Prod_scheme_discount')) || 0,
-          Product_purc_base_disc: parseFloat(findColumnValue(row, 'Product_purc_base_disc')) || 0,
-          Product_opening_stock: parseFloat(findColumnValue(row, 'Product_opening_stock')) || 0,
-          Product_Fresh_Stock: parseFloat(findColumnValue(row, 'Product_Fresh_Stock')) || 0,
-          Product_Damage_stock: parseFloat(findColumnValue(row, 'Product_Damage_stock')) || 0,
-          Product_sample_stock: parseFloat(findColumnValue(row, 'Product_sample_stock')) || 0,
-          Prod_Showroom_stock: parseFloat(findColumnValue(row, 'Prod_Showroom_stock')) || 0,
-          Product_gst: roundTo2Decimals(parseFloat(findColumnValue(row, 'Product_gst')) || 0),
-          Product_fragile: findColumnValue(row, 'Product_fragile') === 'true' || findColumnValue(row, 'Product_fragile') === true || false,
-          Product_Notes: findColumnValue(row, 'Product_Notes') || '',
-          Product_mustorder: findColumnValue(row, 'Product_mustorder') || 'NA',
+          Product_Discount_sale_low: Math.max(0, parseFloat(findColumnValue(row, 'Product_Discount_sale_low', normalizedRow)) || 0),
+          Product_discount_sale_high: Math.max(0, parseFloat(findColumnValue(row, 'Product_discount_sale_high', normalizedRow)) || 0),
+          Prod_Purc_scheme: purcSchemeRaw === 'true' || purcSchemeRaw === true || false,
+          Prod_scheme_discount: Math.max(0, parseFloat(findColumnValue(row, 'Prod_scheme_discount', normalizedRow)) || 0),
+          Product_purc_base_disc: Math.max(0, parseFloat(findColumnValue(row, 'Product_purc_base_disc', normalizedRow)) || 0),
+          Product_opening_stock: Math.max(0, parseFloat(findColumnValue(row, 'Product_opening_stock', normalizedRow)) || 0),
+          Product_Fresh_Stock: Math.max(0, parseFloat(findColumnValue(row, 'Product_Fresh_Stock', normalizedRow)) || 0),
+          Product_Damage_stock: Math.max(0, parseFloat(findColumnValue(row, 'Product_Damage_stock', normalizedRow)) || 0),
+          Product_sample_stock: Math.max(0, parseFloat(findColumnValue(row, 'Product_sample_stock', normalizedRow)) || 0),
+          Prod_Showroom_stock: Math.max(0, parseFloat(findColumnValue(row, 'Prod_Showroom_stock', normalizedRow)) || 0),
+          Product_gst: roundTo2Decimals(parseFloat(findColumnValue(row, 'Product_gst', normalizedRow)) || 0),
+          Product_fragile: fragileRaw === 'true' || fragileRaw === true || false,
+          Product_Notes: findColumnValue(row, 'Product_Notes', normalizedRow) || '',
+          Product_mustorder: findColumnValue(row, 'Product_mustorder', normalizedRow) || 'NA',
           created_by: userId
         };
 

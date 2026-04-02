@@ -286,7 +286,9 @@ const productSchema = new mongoose.Schema({
     trim: true,
     validate: {
       validator: function (v) {
-        return v === 'NA' || (v && v.length > 0);
+        // Allow null/undefined/empty — Mongoose default ('NA') will apply
+        if (v === undefined || v === null || v === '') return true;
+        return true; // any non-empty string is acceptable
       },
       message: 'Product must order reference is required (use "NA" if not applicable)'
     },
