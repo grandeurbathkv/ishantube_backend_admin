@@ -261,6 +261,35 @@ export const updateQuotation = async (req, res) => {
             });
         }
 
+        // Round all numerical values in groups (same as createQuotation)
+        if (req.body.groups && Array.isArray(req.body.groups)) {
+            req.body.groups.forEach(group => {
+                if (group.items && Array.isArray(group.items)) {
+                    group.items.forEach(item => {
+                        if (item.mrp !== undefined) item.mrp = roundTo2Decimals(item.mrp);
+                        if (item.discount !== undefined) item.discount = roundTo2Decimals(item.discount);
+                        if (item.net_rate !== undefined) item.net_rate = roundTo2Decimals(item.net_rate);
+                        if (item.total_amount !== undefined) item.total_amount = roundTo2Decimals(item.total_amount);
+                        if (item.gst_percentage !== undefined) item.gst_percentage = roundTo2Decimals(item.gst_percentage);
+                    });
+                }
+                if (group.subtotal !== undefined) group.subtotal = roundTo2Decimals(group.subtotal);
+                if (group.total_discount !== undefined) group.total_discount = roundTo2Decimals(group.total_discount);
+                if (group.total_amount !== undefined) group.total_amount = roundTo2Decimals(group.total_amount);
+            });
+        }
+
+        // Round financial values
+        if (req.body.grand_total !== undefined) req.body.grand_total = roundTo2Decimals(req.body.grand_total);
+        if (req.body.freight_charges !== undefined) req.body.freight_charges = roundTo2Decimals(req.body.freight_charges);
+        if (req.body.net_amount_before_tax !== undefined) req.body.net_amount_before_tax = roundTo2Decimals(req.body.net_amount_before_tax);
+        if (req.body.gst_amount !== undefined) req.body.gst_amount = roundTo2Decimals(req.body.gst_amount);
+        if (req.body.gst_percentage !== undefined) req.body.gst_percentage = roundTo2Decimals(req.body.gst_percentage);
+        if (req.body.net_amount_payable !== undefined) req.body.net_amount_payable = roundTo2Decimals(req.body.net_amount_payable);
+        if (req.body.additional_discount !== undefined) req.body.additional_discount = roundTo2Decimals(req.body.additional_discount);
+        if (req.body.coupon_discount !== undefined) req.body.coupon_discount = roundTo2Decimals(req.body.coupon_discount);
+        if (req.body.roundoff_amount !== undefined) req.body.roundoff_amount = roundTo2Decimals(req.body.roundoff_amount);
+
         // Add updated_by to the update data
         const updateData = {
             ...req.body,
