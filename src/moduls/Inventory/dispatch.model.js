@@ -118,8 +118,29 @@ const dispatchSchema = new mongoose.Schema({
 // Auto-generate dispatch number
 dispatchSchema.pre('save', async function (next) {
     if (!this.dispatch_no) {
-        const count = await mongoose.model('Dispatch').countDocuments();
-        const dispatchNumber = `DN${String(count + 1).padStart(6, '0')}`;
+        // Use the highest existing dispatch_no to avoid duplicates after deletions
+        const last = await mongoose.model('Dispatch')
+            .findOne({}, { dispatch_no: 1 })
+            .sort({ dispatch_no: -1 })
+            .lean();
+
+        let nextNum = 1;
+        if (last && last.dispatch_no) {
+            const match = last.dispatch_no.match(/^DN(\d+)$/);
+            if (match) {
+                nextNum = parseInt(match[1], 10) + 1;
+            }
+        }
+
+        // Safety: keep incrementing if the generated number already exists (race condition guard)
+        let dispatchNumber = `DN${String(nextNum).padStart(6, '0')}`;
+        let exists = await mongoose.model('Dispatch').findOne({ dispatch_no: dispatchNumber }).lean();
+        while (exists) {
+            nextNum++;
+            dispatchNumber = `DN${String(nextNum).padStart(6, '0')}`;
+            exists = await mongoose.model('Dispatch').findOne({ dispatch_no: dispatchNumber }).lean();
+        }
+
         this.dispatch_no = dispatchNumber;
     }
     next();

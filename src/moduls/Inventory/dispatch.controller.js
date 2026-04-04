@@ -600,3 +600,129 @@ export const getDispatchesByOrderId = async (req, res) => {
     }
 };
 
+// Delete a pending dispatch (only allowed if sell_record_created = false)
+export const deleteDispatch = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const { id } = req.params;
+
+        const dispatch = await Dispatch.findById(id).session(session);
+        if (!dispatch) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({
+                success: false,
+                message: 'Dispatch not found'
+            });
+        }
+
+        // Only allow deletion if sell record has NOT been created
+        if (dispatch.sell_record_created) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot delete this dispatch. A sell record has already been created for it.'
+            });
+        }
+
+        // Get the related order
+        const order = await Order.findById(dispatch.order_id).session(session);
+        if (!order) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(404).json({
+                success: false,
+                message: 'Related order not found'
+            });
+        }
+
+        // 1. Reverse Product_On_Hold_Qty for each dispatch item
+        for (const dispatchItem of dispatch.items) {
+            if (dispatchItem.product_id) {
+                try {
+                    const product = await Product.findById(dispatchItem.product_id).session(session);
+                    if (product) {
+                        const prevOnHold = product.Product_On_Hold_Qty || 0;
+                        product.Product_On_Hold_Qty = Math.max(0, prevOnHold - (dispatchItem.quantity || 0));
+                        await product.save({ session });
+                        console.log(`✅ Reversed on-hold for ${product.Product_code}: ${prevOnHold} → ${product.Product_On_Hold_Qty}`);
+                    }
+                } catch (err) {
+                    console.error(`Error reversing on-hold for product ${dispatchItem.product_id}:`, err);
+                }
+            }
+        }
+
+        // 2. Reverse dispatched_quantity on order items
+        for (const dispatchItem of dispatch.items) {
+            for (const group of order.groups) {
+                const orderItem = group.items.find(item =>
+                    item.product_id && item.product_id.toString() === dispatchItem.product_id?.toString()
+                );
+                if (orderItem) {
+                    orderItem.dispatched_quantity = Math.max(0, (orderItem.dispatched_quantity || 0) - (dispatchItem.quantity || 0));
+                    orderItem.balance_quantity = orderItem.quantity - orderItem.dispatched_quantity;
+                    console.log(`↩️ Reversed dispatch qty for ${orderItem.product_code}: dispatched=${orderItem.dispatched_quantity}, balance=${orderItem.balance_quantity}`);
+                    break;
+                }
+            }
+        }
+
+        // 3. Recalculate order status after reversal
+        let allItemsFullyDispatched = true;
+        let anyItemPartiallyDispatched = false;
+        let totalItems = 0;
+
+        for (const group of order.groups) {
+            for (const item of group.items) {
+                totalItems++;
+                const dispatched = item.dispatched_quantity || 0;
+                const ordered = item.quantity || 0;
+                if (dispatched >= ordered) {
+                    // fully dispatched - do nothing
+                } else if (dispatched > 0) {
+                    anyItemPartiallyDispatched = true;
+                    allItemsFullyDispatched = false;
+                } else {
+                    allItemsFullyDispatched = false;
+                }
+            }
+        }
+
+        const previousStatus = order.status;
+        if (totalItems === 0 || (!allItemsFullyDispatched && !anyItemPartiallyDispatched)) {
+            // Nothing dispatched — revert to awaiting_dispatch
+            order.status = 'awaiting_dispatch';
+        } else if (anyItemPartiallyDispatched) {
+            order.status = 'partially dispatched';
+        } else if (allItemsFullyDispatched) {
+            order.status = 'dispatching';
+        }
+        console.log(`📋 Order status: "${previousStatus}" → "${order.status}"`);
+        await order.save({ session });
+
+        // 4. Delete the dispatch document
+        await Dispatch.findByIdAndDelete(id, { session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        console.log(`🗑️ Dispatch ${dispatch.dispatch_no} deleted successfully`);
+
+        res.status(200).json({
+            success: true,
+            message: `Dispatch ${dispatch.dispatch_no} deleted successfully. Order quantities have been restored.`
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        console.error('Error deleting dispatch:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to delete dispatch'
+        });
+    }
+};
