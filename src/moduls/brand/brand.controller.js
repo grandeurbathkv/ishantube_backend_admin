@@ -15,16 +15,16 @@ const checkSuperAdminAccess = (req, res, next) => {
 // ========== Main Brand Management (Consolidated CRUD) ==========
 const manageBrands = async (req, res) => {
   try {
-    // Check Super Admin access first
-    if (!req.user.isSuperAdmin) {
+    const method = req.method;
+    const { id } = req.params;
+
+    // For write operations (POST, PUT, DELETE), restrict to Super Admin only
+    if (method !== 'GET' && !req.user.isSuperAdmin) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Only Super Admin can manage brands.'
       });
     }
-
-    const method = req.method;
-    const { id } = req.params;
     const userId = req.user._id;
 
     switch (method) {
@@ -105,7 +105,7 @@ const manageBrands = async (req, res) => {
           } = req.query;
 
           let filter = {};
-          
+
           // Search functionality
           if (search) {
             filter.$or = [
@@ -121,7 +121,7 @@ const manageBrands = async (req, res) => {
           }
 
           const skip = (parseInt(page) - 1) * parseInt(limit);
-          
+
           let query = Brand.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -161,7 +161,7 @@ const manageBrands = async (req, res) => {
 
         // Check if Brand_Name already exists (excluding current brand)
         if (req.body.Brand_Name) {
-          const existingBrandName = await Brand.findOne({ 
+          const existingBrandName = await Brand.findOne({
             Brand_Name: req.body.Brand_Name,
             Brand_Code: { $ne: id }
           });
@@ -247,7 +247,7 @@ const getBrandAnalytics = async (req, res) => {
     switch (type) {
       case 'summary':
         const analytics = await Brand.getBrandAnalytics();
-        
+
         return res.status(200).json({
           success: true,
           message: 'Brand analytics retrieved successfully',
@@ -304,14 +304,7 @@ const getBrandAnalytics = async (req, res) => {
 // ========== Get All Brands Dropdown ==========
 const getAllBrandsDropdown = async (req, res) => {
   try {
-    // Check Super Admin access first
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Only Super Admin can access brand dropdown.'
-      });
-    }
-
+    // All authenticated users can access brand dropdown (no Super Admin restriction)
     const { search, supplier, limit = 100 } = req.query;
 
     let filter = {};
