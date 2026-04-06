@@ -224,8 +224,13 @@ const manageProducts = async (req, res) => {
           await ProductSeries.getOrCreate(updateData.Product_Series, userId);
         }
 
+        // Build filter: try Prod_ID first, fall back to _id if valid ObjectId
+        const updateFilter = mongoose.Types.ObjectId.isValid(id)
+          ? { $or: [{ Prod_ID: id }, { _id: id }] }
+          : { Prod_ID: id };
+
         const updatedProduct = await Product.findOneAndUpdate(
-          { Prod_ID: id },
+          updateFilter,
           updateData,
           { new: true, runValidators: true }
         ).populate('created_by', 'name email');
@@ -1048,18 +1053,6 @@ const uploadProductsFromExcel = async (req, res, next) => {
           continue;
         }
 
-        // Check for duplicates
-        const existingProduct = await Product.findOne({ Product_code: productCode });
-        if (existingProduct) {
-          results.duplicates.push({
-            row: rowNumber,
-            data: row,
-            existing: existingProduct,
-            error: 'Product with this code already exists'
-          });
-          continue;
-        }
-
         // Auto-create dropdowns if needed
         if (productBrand) {
           await ProductBrand.getOrCreate(productBrand, userId);
@@ -1082,7 +1075,7 @@ const uploadProductsFromExcel = async (req, res, next) => {
         const purcSchemeRaw = findColumnValue(row, 'Prod_Purc_scheme', normalizedRow);
         const fragileRaw = findColumnValue(row, 'Product_fragile', normalizedRow);
 
-        // Create product data object
+        // Build product data object
         const productData = {
           Product_code: productCode,
           Product_Description: productDescription,
@@ -1111,12 +1104,26 @@ const uploadProductsFromExcel = async (req, res, next) => {
           created_by: userId
         };
 
-        // Create new product
-        const newProduct = await Product.create(productData);
+        // Upsert: update existing product or create new one — no duplicates skipped
+        const existingProduct = await Product.findOne({ Product_code: productCode });
+        let savedProduct;
+        if (existingProduct) {
+          // Update existing — preserve _id and Prod_ID
+          savedProduct = await Product.findOneAndUpdate(
+            { Product_code: productCode },
+            { $set: productData },
+            { new: true }
+          );
+          console.log(`UPSERT: Updated existing product ${productCode} (row ${rowNumber})`);
+        } else {
+          savedProduct = await Product.create(productData);
+          console.log(`UPSERT: Created new product ${productCode} (row ${rowNumber})`);
+        }
 
         results.successful.push({
           row: rowNumber,
-          data: newProduct
+          data: savedProduct,
+          action: existingProduct ? 'updated' : 'created'
         });
 
       } catch (error) {
@@ -1141,27 +1148,31 @@ const uploadProductsFromExcel = async (req, res, next) => {
 
     console.log('========================================');
     console.log('STEP 11: Product Excel upload completed');
+    const updatedCount = results.successful.filter(r => r.action === 'updated').length;
+    const createdCount = results.successful.filter(r => r.action === 'created').length;
     console.log('Summary:', {
       total: results.totalRows,
-      successful: results.successful.length,
+      created: createdCount,
+      updated: updatedCount,
       failed: results.failed.length,
-      duplicates: results.duplicates.length
     });
     console.log('========================================');
 
     return res.status(200).json({
       success: true,
-      message: `Excel upload completed. ${results.successful.length}/${results.totalRows} records processed successfully`,
+      message: `Excel upload completed. ${results.successful.length}/${results.totalRows} records processed (${createdCount} created, ${updatedCount} updated)`,
       data: {
         summary: {
           totalRows: results.totalRows,
           successful: results.successful.length,
+          created: createdCount,
+          updated: updatedCount,
           failed: results.failed.length,
-          duplicates: results.duplicates.length
+          duplicates: 0
         },
         successful: results.successful,
         failed: results.failed,
-        duplicates: results.duplicates
+        duplicates: []
       }
     });
 

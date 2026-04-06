@@ -638,10 +638,13 @@ const getAllPartiesDropdown = async (req, res) => {
 
     console.log('🔵 PARTY DROPDOWN - Step 3: Filter:', filter);
 
+    // limit=all or limit=0 → no limit (return everything); otherwise parse as int
+    const parsedLimit = (limit === 'all' || limit === '0') ? 0 : (parseInt(limit) || 100);
+
     const parties = await Party.find(filter)
       .select('Party_id Party_Billing_Name')
       .sort({ Party_id: 1 })
-      .limit(parseInt(limit));
+      .limit(parsedLimit);
 
     console.log('🔵 PARTY DROPDOWN - Step 4: Found parties count:', parties.length);
     console.log('🔵 PARTY DROPDOWN - Step 5: Sample party:', parties[0]);

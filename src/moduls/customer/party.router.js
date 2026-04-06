@@ -583,8 +583,10 @@ router.route('/:id').get(protect, manageParties).put(protect, manageParties).del
  *         description: Not authorized
  */
 
-// Dropdown management routes
-// router.route('/dropdown/:type').get(protect, manageDropdownData).post(protect, manageDropdownData);
+// Dropdown management routes — /dropdown/all MUST come before /dropdown/:type
+// so Express doesn't match "all" as the :type parameter
+router.get("/dropdown/all", protect, getAllPartiesDropdown);
+router.route('/dropdown/:type').get(protect, manageDropdownData).post(protect, manageDropdownData);
 router.route('/dropdown/:type/:id').put(protect, manageDropdownData).delete(protect, manageDropdownData);
 
 // ========== Analytics Routes ==========
@@ -626,34 +628,6 @@ router.route('/dropdown/:type/:id').put(protect, manageDropdownData).delete(prot
  *         description: Not authorized
  */
 router.get('/analytics', protect, getPartyAnalytics);
-
-/**
- * @swagger
- * /api/party/dropdown/all:
- *   get:
- *     summary: Get all Party ID & Name dropdown
- *     tags: [Party]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Search Party by ID or Billing Name
- *       - in: query
- *         name: limit
- *         schema:
- *           type: string
- *           example: all
- *         description: Limit number of records (use "all" for full list)
- *     responses:
- *       200:
- *         description: All Party dropdown data retrieved successfully
- *       500:
- *         description: Internal server error
- */
-router.get("/dropdown/all", protect, getAllPartiesDropdown);
 
 // OTP Routes (Public - No authentication required)
 router.post('/send-otp', sendPartyOTP);
