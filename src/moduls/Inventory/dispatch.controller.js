@@ -15,7 +15,7 @@ const roundTo2Decimals = (num) => {
 export const createDispatch = async (req, res) => {
     try {
         const userId = req.user?._id || req.user?.id;
-        const userName = req.user?.User_Name || 'Unknown User';
+        const userName = req.user?.['User Name'] || 'Unknown User';
 
         console.log('Creating dispatch note:', req.body);
         console.log('Dispatch Items received:', JSON.stringify(req.body.items, null, 2));
@@ -238,7 +238,7 @@ export const getAllDispatches = async (req, res) => {
 
         const dispatches = await Dispatch.find(filter)
             .populate('order_id', 'order_no status net_amount_payable')
-            .populate('created_by', 'User_Name User_Email')
+            .populate({ path: 'created_by', select: { 'User Name': 1, 'Email id': 1 } })
             .sort({ dispatch_date: -1 })
             .skip(skip)
             .limit(parseInt(limit));
@@ -272,7 +272,7 @@ export const getDispatchById = async (req, res) => {
         const dispatch = await Dispatch.findById(req.params.id)
             .populate('order_id')
             .populate('site_id')          // populate Site document for fallback
-            .populate('created_by', 'User_Name User_Email');
+            .populate({ path: 'created_by', select: { 'User Name': 1, 'Email id': 1 } });
 
         if (!dispatch) {
             return res.status(404).json({

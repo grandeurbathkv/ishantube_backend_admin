@@ -34,6 +34,10 @@ const quotationItemSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    discount_input: {
+        type: Number,
+        default: 0
+    },
     discount_type: {
         type: String,
         enum: ['percentage', 'fixed', 'minSaleDiscount', 'maxSaleDiscount'],
