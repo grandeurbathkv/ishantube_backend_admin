@@ -209,13 +209,17 @@ export const getAllDispatches = async (req, res) => {
             from_date,
             to_date,
             search,
-            sell_record_created
+            sell_record_created,
+            party_id,
+            site_id
         } = req.query;
 
         const filter = {};
 
         if (status) filter.status = status;
         if (order_id) filter.order_id = order_id;
+        if (party_id) filter.party_id = party_id;
+        if (site_id) filter.site_id = site_id;
         if (sell_record_created !== undefined && sell_record_created !== '') {
             filter.sell_record_created = sell_record_created === 'true';
         }
